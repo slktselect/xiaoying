@@ -6,8 +6,10 @@
  *   GET /sign?key=<对象key>&ttl=<秒>      -> 业务后端使用的签发接口（需 Bearer SIGN_TOKEN）
  *   GET|HEAD /v/<key>?exp=<秒>&sig=<签名> -> 校验签名后从 R2 返回视频，支持 Range
  *
- * 绑定/变量见 wrangler.toml：BUCKET(R2)、SIGN_SECRET(secret)、SIGN_TOKEN(secret)
+ * 绑定/变量见 wrangler.toml：BUCKET(R2)、USAGE(KV)、SIGN_SECRET(secret)、SIGN_TOKEN(secret)
  */
+
+import { beginRequest, endRequest, currentUsage } from './usage.js';
 
 const enc = new TextEncoder();
 
@@ -39,13 +41,39 @@ export default {
     const url = new URL(request.url);
     const ip = request.headers.get('cf-connecting-ip') || '';
 
-    if (url.pathname === '/api/video') return issueForPlayer(request, env, url, ip);
-    if (url.pathname === '/sign') return handleSign(request, env, url, ip);
-    if (url.pathname.startsWith('/v/')) return serveVideo(request, env, url, ip);
+    // 静态资源由 Workers Assets 直出，能走到这里的一定是下面的动态路由，统一计入配额
+    const quota = await beginRequest(env);
+    if (quota.exceeded) {
+      return text(
+        '429 Too Many Requests：今日免费额度已用尽，请明天再试',
+        429,
+        { 'retry-after': String(quota.retryAfter), 'cache-control': 'no-store' },
+      );
+    }
 
-    return text('Not Found', 404);
+    let res;
+    if (url.pathname === '/api/video') res = await issueForPlayer(request, env, url, ip);
+    else if (url.pathname === '/sign') res = await handleSign(request, env, url, ip);
+    else if (url.pathname.startsWith('/v/')) res = await serveVideo(request, env, url, ip);
+    else if (url.pathname === '/usage') res = await showUsage(env, request);
+    else res = text('Not Found', 404);
+
+    // 出网字节数计入当日用量（放在 waitUntil，不占 Worker CPU 时间）
+    ctx.waitUntil(endRequest(env, res.headers.get('content-length')));
+    return res;
   },
 };
+
+/** 当日用量查询：同一 IP 白名单内可用；生产建议加鉴权或直接注释掉该路由 */
+async function showUsage(env, request) {
+  const ip = request.headers.get('cf-connecting-ip') || '';
+  const allowed = (env.USAGE_ALLOW_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  // 未显式配置白名单时一律拒绝，避免用量数据对外泄露
+  if (!allowed.includes(ip)) return text('Forbidden', 403);
+  const usage = await currentUsage(env);
+  if (!usage) return json({ error: 'usage tracking disabled' }, 404);
+  return json(usage);
+}
 
 /* ------------------- /api/video：给前端播放器的签发接口 ------------------- */
 
@@ -62,14 +90,16 @@ async function issueForPlayer(request, env, url, ip) {
   if (!keyAllowed(key, env)) return json({ error: 'forbidden: key not allowed' }, 403);
 
   const ttl = clamp(Number(url.searchParams.get('ttl') || env.PLAY_TTL || 300), 1, 86400);
-  const exp = Math.floor(Date.now() / 1000) + ttl;
+  // exp 对齐到 SIGN_WINDOW：同一时间窗口内所有访客拿到完全相同的 URL，
+  // 这样 Cloudflare 边缘节点只需缓存一份，绝大多数请求由 CDN 直出而非回源 R2。
+  const exp = bucketExp(ttl, env);
   const sig = await makeSig(env.SIGN_SECRET, payload(env, key, exp, ip));
 
   return json({
     url: `/v/${encodeURI(key)}?exp=${exp}&sig=${sig}`,
     key,
     exp,
-    ttl,
+    ttl: exp - Math.floor(Date.now() / 1000),
   });
 }
 
@@ -87,7 +117,7 @@ async function handleSign(request, env, url, ip) {
   if (!key) return json({ error: 'key is required' }, 400);
 
   const ttl = clamp(Number(url.searchParams.get('ttl') || 300), 1, 7 * 24 * 3600);
-  const exp = Math.floor(Date.now() / 1000) + ttl;
+  const exp = bucketExp(ttl, env);
   const sig = await makeSig(env.SIGN_SECRET, payload(env, key, exp, ip));
 
   return json({
@@ -147,6 +177,12 @@ async function serveVideo(request, env, url, ip) {
     status = 206;
   }
 
+  // 限制单次 Range 的字节数，避免被大量请求把 R2 Class B 操作次数放大
+  const maxRange = Number(env.MAX_RANGE_BYTES || 0);
+  if (maxRange > 0 && end - start + 1 > maxRange) {
+    end = Math.min(end, start + maxRange - 1);
+  }
+
   const length = end - start + 1;
   headers.set('accept-ranges', 'bytes');
   headers.set('content-length', String(length));
@@ -174,6 +210,17 @@ async function serveVideo(request, env, url, ip) {
 
 function payload(env, key, exp, ip) {
   return env.BIND_IP === '1' ? `${key}\n${exp}\n${ip}` : `${key}\n${exp}`;
+}
+
+/**
+ * 把过期时间向上取整到 SIGN_WINDOW 的整数倍。
+ * 目的：同一时间窗口内所有访客拿到**完全相同**的 URL，
+ * 使 Cloudflare 边缘节点只需缓存一份（否则每人一个签名 = 每人一份缓存副本）。
+ */
+function bucketExp(ttl, env) {
+  const window = Math.max(1, Number(env.SIGN_WINDOW || 300));
+  const now = Math.floor(Date.now() / 1000);
+  return Math.ceil((now + Math.max(1, ttl)) / window) * window;
 }
 
 function keyAllowed(key, env) {
@@ -221,16 +268,19 @@ function parseRange(header, size) {
 }
 
 function baseHeaders(head, key, env, exp) {
+  // 签名本身带过期时间、且 exp 已按 SIGN_WINDOW 对齐，同一窗口内 URL 完全一致，
+  // 因此响应可以安全地放进 Cloudflare 边缘缓存做免费 CDN 分发；
+  // max-age 不会超过剩余有效期，过期后自然失效。
   const maxAge = clamp(
-    Math.min(Number(env.CACHE_MAX_AGE || 3600), exp - Math.floor(Date.now() / 1000)),
+    Math.min(Number(env.CDN_CACHE_MAX_AGE || 300), exp - Math.floor(Date.now() / 1000)),
     0,
-    31536000,
+    86400,
   );
   const h = new Headers({
     'content-type': (head.httpMetadata && head.httpMetadata.contentType) || guessMime(key),
     'content-disposition': 'inline',
-    // 签名 URL 走 private，避免被共享缓存留存到签名失效之后
-    'cache-control': `private, max-age=${maxAge}`,
+    'cache-control': `public, max-age=${maxAge}`,
+    'cloudflare-cdn-cache-control': `max-age=${maxAge}`,
   });
   const etag = head.httpEtag || head.etag;
   if (etag) h.set('etag', etag);
@@ -316,10 +366,10 @@ function clamp(n, min, max) {
   return Math.min(Math.max(Math.trunc(n), min), max);
 }
 
-function text(body, status = 200) {
+function text(body, status = 200, headers = {}) {
   return new Response(body, {
     status,
-    headers: { 'content-type': 'text/plain; charset=utf-8' },
+    headers: { 'content-type': 'text/plain; charset=utf-8', ...headers },
   });
 }
 

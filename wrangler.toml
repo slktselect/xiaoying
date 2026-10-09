@@ -14,6 +14,15 @@ run_worker_first = ["/v/*", "/sign", "/api/*"]
 binding = "BUCKET"
 bucket_name = "xiaoying-video"
 
+# KV：每日用量统计（免费额度护栏）
+# 启用步骤：
+#   1. npx wrangler kv namespace create xiaoying-usage
+#   2. 把输出的 id 填到下面的 id = "..." 里，并删掉这行注释
+# 未启用时配额功能自动降级为"不限制"，deploy 不受影响。
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "粘贴 kv namespace create 输出的 id"
+
 # ---------- 明文配置（非敏感） ----------
 [vars]
 # 允许通过 /api/video 播放的 R2 对象 key，逗号分隔；留空 = 不限制（建议生产环境务必配置）
@@ -21,7 +30,7 @@ VIDEO_KEYS = "gna.mp4"
 
 # /api/video 与 /v/* 使用的 Referer 白名单，逗号分隔；留空 = 不校验
 # 部署后请把你的域名填进来，例如：
-# ALLOW_REFERERS = "resume.example.com,*.workers.dev,*.pages.dev"
+# ALLOW_REFERERS = "xiaoying.xxx.workers.dev,resume.example.com"
 ALLOW_REFERERS = ""
 
 # 无 Referer 的直接访问是否放行（ALLOW_REFERERS 非空时生效）
@@ -30,11 +39,38 @@ ALLOW_EMPTY_REFERER = "0"
 # 签名是否绑定客户端 IP（1 = 开启；移动端换网络会失效，慎用）
 BIND_IP = "0"
 
-# 播放链接有效期（秒）
-PLAY_TTL = "300"
+# ---------- 免费额度护栏 ----------
+# 每天允许的次数（含 /api/video 与 /v/*）；0 = 不限制
+# Workers 免费计划上限约 10 万次/天，这里设一半留余量
+DAILY_REQUEST_LIMIT = "50000"
 
-# 响应 Cache-Control 的最大 max-age（秒），实际会再与签名过期时间取小
-CACHE_MAX_AGE = "3600"
+# 每天允许的出网字节数；0 = 不限制。5 GiB = 5368709120
+# R2 出网本身免费，限制它主要是防止被刷导致 Class B 操作数暴涨
+DAILY_BYTES_LIMIT = "5368709120"
+
+# 用量写回 KV 的最小间隔（秒），越大越省 KV 写额度
+QUOTA_FLUSH_INTERVAL = "600"
+
+# 1 = 超限返回 429；0 = 只统计不拦截
+QUOTA_ENFORCE = "1"
+
+# 允许查看 /usage 用量接口的客户端 IP，逗号分隔；留空 = 该接口对所有人 403
+USAGE_ALLOW_IPS = ""
+
+# ---------- CDN 免费分发 ----------
+# 签名过期时间的对齐粒度（秒）。
+# 同一窗口内所有访客拿到的 URL 完全相同 -> Cloudflare 边缘节点可以共享同一份缓存，
+# 绝大多数请求由 CDN 直出，不再回源到 R2 / Worker。
+SIGN_WINDOW = "300"
+
+# 视频响应在 CDN 与浏览器上的最长缓存时间（秒）
+CDN_CACHE_MAX_AGE = "300"
+
+# 单次 Range 请求返回的字节上限（8 MiB）。防止被大量小 Range 请求放大 R2 操作次数
+MAX_RANGE_BYTES = "8388608"
+
+# 播放链接有效期（秒），会向上取整到 SIGN_WINDOW 的整数倍
+PLAY_TTL = "300"
 
 # ---------- 敏感配置：用 Secret，不要写在这里 ----------
 # npx wrangler secret put SIGN_SECRET   # HMAC 签名密钥

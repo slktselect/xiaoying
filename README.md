@@ -13,6 +13,7 @@ npx wrangler deploy
 
 ```
 src/index.js        Worker：视频签名校验 + R2 回源 + 静态资源兜底
+src/usage.js        每日用量统计与免费额度护栏（Workers KV）
 public/index.html   简历页面骨架
 public/styles.css   样式（响应式 + 打印优化）
 public/app.js       读取 resume.json 渲染页面，向 Worker 换取视频播放地址
@@ -28,9 +29,13 @@ wrangler.toml       Workers / 静态资源 / R2 绑定 / 环境变量
 | GET | `/api/video?key=<对象key>` | 校验来源后签发短期播放地址，前端播放器调用 |
 | GET | `/v/<key>?exp=<秒>&sig=<签名>` | 校验签名后从 R2 返回视频，支持 `Range` → `206` |
 | GET | `/sign?key=&ttl=` | 业务后端用的签发接口，需 `Authorization: Bearer $SIGN_TOKEN` |
+| GET | `/usage` | 查看当日用量，仅 `USAGE_ALLOW_IPS` 中的 IP 可访问 |
 
 签名算法：`payload = "<key>\n<exp>"`（`BIND_IP=1` 时追加 `"\n<客户端IP>"`），
 `sig = base64url(HMAC-SHA256(SIGN_SECRET, payload))`。
+
+> `exp` 会向上取整到 `SIGN_WINDOW`（默认 300 秒）的整数倍，
+> 这是为了让同一时间窗内所有访客得到**完全相同**的 URL，从而命中同一份 CDN 缓存。
 
 ## 部署步骤
 
@@ -87,7 +92,7 @@ npx wrangler r2 object list xiaoying-video
 部署拿到域名后，**务必**在 `wrangler.toml` 的 `[vars]` 里收紧，然后重新 `npx wrangler deploy`：
 
 ```toml
-VIDEO_KEYS = "self-intro.mp4"                                # 只允许这些 key 被签发播放
+VIDEO_KEYS = "gna.mp4"                                       # 只允许这些 key 被签发播放
 ALLOW_REFERERS = "xiaoying.xxx.workers.dev,resume.example.com"  # 只允许本站页面嵌入播放
 ALLOW_EMPTY_REFERER = "0"                                    # 无 Referer 的直接访问一律 403
 BIND_IP = "1"                                                # 可选：签名绑定客户端 IP
@@ -102,10 +107,118 @@ PLAY_TTL = "300"                                             # 播放地址有�
 
 > 若绑定自定义域名或使用 Workers.dev 之外的入口，记得把对应域名加进 `ALLOW_REFERERS`。
 
+## 用 S3 API 管理 R2 对象
+
+除了 `wrangler r2 object put`，也可以用标准 S3 工具（rclone、AWS CLI、Cyberduck 等）管理 `xiaoying-video`，
+大文件分片上传更稳。入口地址：
+
+```
+https://<ACCOUNT_ID>.r2.cloudflarestorage.com/xiaoying-video
+```
+
+`<ACCOUNT_ID>` 在 Cloudflare 控制台 → R2 概览页可以看到，**不要写进代码仓库**。
+
+1. R2 → 管理 R2 API 令牌 → 创建**账户级**令牌（Object Read & Write），得到 Access Key ID / Secret Access Key；
+2. 用 rclone：
+
+```powershell
+rclone config   # 选 Amazon S3 -> provider=Cloudflare -> endpoint=<ACCOUNT_ID>.r2.cloudflarestorage.com
+rclone ls r2:xiaoying-video
+rclone copy .\gna.mp4 r2:xiaoying-video --s3-chunk-size 64M --progress
+```
+
+> 用 Dashboard 上传超过 4.7GB 的文件必须走 S3 API；本项目单个视频远小于此，两种方式都可以。
+
+## 使用 Cloudflare 免费 CDN 分发
+
+视频响应带 `Cache-Control: public, max-age=...` 与 `Cloudflare-CDN-Cache-Control`，
+配合 `SIGN_WINDOW` 让同一时间窗内所有访客共享同一个 URL → 边缘节点只需缓存一份。
+只要有一份被缓存，后续请求就由 CDN 直出，**不再调用 Worker、不再回源 R2**。
+
+### 必须做的一步：配置 Cache Rule
+
+带查询串的 URL 在部分默认配置下不会被缓存，需在控制台显式放行：
+
+> 控制台 → 网站（或 Workers 所在zone）→ Caching → Cache Rules → 创建规则
+
+- 表达式：`starts_with(http.request.uri.path, "/v/")`
+- Cache eligibility：**Eligible for cache**（相当于 Cache Everything）
+- Edge TTL：Use cache-control / 设为 300 秒
+- Cache Key：默认即包含完整查询字符串，**不要**排除 `exp` / `sig`（否则会串号）
+
+同时建议打开 **Tiered Caching**（免费）：Caching → Tiered Cache，
+让上层节点统一回源，进一步减少对 R2 的请求数。
+
+静态页面（`public/`）由 Workers Assets 直出，本身就带边缘缓存，无需额外配置。
+
+验证是否命中 CDN：
+
+```powershell
+curl -I "https://<你的域名>/v/gna.mp4?exp=...&sig=..."   # 看 cf-cache-status: HIT
+```
+
+## 免费额度护栏（避免产生任何费用）
+
+### Cloudflare 免费计划额度（2026 年）
+
+| 项目 | 免费额度 | 超出后 |
+| --- | --- | --- |
+| Workers 请求数 | 10 万次/天（免费计划硬性封顶，不会计费） | 当日拒绝 (HTTP 1027) |
+| Workers CPU | 10 ms/请求（流式响应基本不计） | 不计费 |
+| R2 存储 | 10 GB·月 | **按 $0.015/GB·月 计费** |
+| R2 Class A（写/列出） | 100 万次/月 | 计费 |
+| R2 Class B（读） | 1000 万次/月 | 计费 |
+| R2 出网流量 | **免费** | — |
+| Workers KV | 10 万次读/天、1000 次写/天、1 GB | 计费 |
+
+结论：**唯一可能真正产生费用的是 R2 存储用量与操作次数**，出网永远免费。
+
+### 代码层护栏（`wrangler.toml` → `[vars]`，已实现）
+
+```toml
+DAILY_REQUEST_LIMIT = "50000"      # 每天动态请求上限，达到即返回 429（远低于 10 万/天）
+DAILY_BYTES_LIMIT   = "5368709120" # 每天出网上限 5 GiB，达到即返回 429
+QUOTA_FLUSH_INTERVAL = "600"       # 用量每 10 分钟写回 KV 一次，省 KV 写额度
+QUOTA_ENFORCE = "1"                # 0 = 只统计不拦截
+MAX_RANGE_BYTES = "8388608"        # 单次 Range 最多 8 MiB，防止小 Range 刷 R2 读次数
+```
+
+启用统计（未启用时自动降级为不限制，不影响部署）：
+
+```powershell
+npx wrangler kv namespace create xiaoying-usage
+# 把输出的 id 填到 wrangler.toml 的 [[kv_namespaces]] 里（默认已注释）
+npx wrangler deploy
+```
+
+查看当日用量（`USAGE_ALLOW_IPS` 留空时该接口对所有人 403）：
+
+```toml
+USAGE_ALLOW_IPS = "你的公网IP"
+```
+
+```powershell
+curl https://<你的域名>/usage
+```
+
+> 计数是**近似值**（isolate 内存先累计再批量写回），作为预算护栏足够。
+> 需要精确/实时请改用 Durable Objects —— 但那需要 Workers 付费计划。
+
+### 平台层护栏（强烈建议，免费且不消耗 Worker 调用）
+
+1. **WAF 速率限制**：控制台 → Security → WAF → Rate limiting rules，
+   对 `URI Path starts with /v/ 或 /api/` 限制「每 IP 每分钟请求数」，动作为 **Block**，缓解脚本刷量。
+2. **账单通知**：控制台 → Billing → 设置支出提醒；Notifications 里开启 Billing 通知。
+3. **Hotlink 兜底**：Cloudflare → Scrape Shield → 打开 Hotlink Protection（主要针对图片，视频靠本项目自己的签名）。
+4. **视频体积**：简历视频建议压缩到 100 MB 以内，多几个视频也不会接近 10 GB 存储上限。
+
 ## 注意事项
 
 - `ALLOW_REFERERS` 留空表示不校验 Referer，上线前请务必配置。
 - Worker 已实现 `Range` → `206 Partial Content`，缺少它浏览器无法拖动视频进度条。
 - R2 **不收取出网流量费**，适合放视频。
+- CDN 缓存会让超限后的旧链接在 `max-age` 秒内继续可用；上限即便如此也只是软着陆，
+  真正兜底靠 WAF 速率限制。
 - 页面未设置 CORS（默认最严）；若后续要加载跨域字幕再另行放行。
 - `resume.json` 是纯数据，`app.js` 全量渲染，改内容无需改动代码。
+- 不要把 Cloudflare 账号 ID、R2 S3 端点中的账号段、`SIGN_SECRET` 写进仓库。
