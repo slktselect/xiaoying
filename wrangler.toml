@@ -4,7 +4,13 @@ name = "xiaoying"
 main = "worker/index.js"
 compatibility_date = "2026-10-09"
 
-# 静态站点（简历页面）：Vite 构建产物，改前端后先 npm run build
+# 部署前先构建前端。
+# Cloudflare 的 Git 自动构建默认只跑 `npx wrangler deploy`，不会执行 npm run build，
+# 没有这段就会报 "assets.directory ... does not exist: dist"。
+[build]
+command = "npm run build"
+
+# 静态站点（简历页面）：Vite 构建产物
 [assets]
 directory = "./dist"
 run_worker_first = ["/v/*", "/sign", "/api/*"]
