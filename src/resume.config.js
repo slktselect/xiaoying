@@ -24,13 +24,13 @@
 const resume = {
   /* ---------------- 基本信息 ---------------- */
   profile: {
-    name: '你的姓名',
+    name: '小颖',
     // 岗位 / 求职意向，显示在姓名下方
-    title: '应聘岗位：高级前端工程师',
+    title: '应聘岗位：剪辑师',
     // 头像图片地址，留空则显示姓名首字
     avatar: '',
     // 一句话简介，显示在头部
-    summary: '5 年前端开发经验，专注于 Web 性能优化与前端工程化，主导过多个中后台与 C 端项目建设。',
+    summary: '专业剪辑大师',
   },
 
   /* ---------------- 联系方式 ---------------- */
@@ -39,7 +39,7 @@ const resume = {
     { label: '电话', value: '138-0000-0000', href: 'tel:13800000000' },
     { label: '邮箱', value: 'yourname@example.com', href: 'mailto:yourname@example.com' },
     { label: 'GitHub', value: 'github.com/yourname', href: 'https://github.com/yourname' },
-    { label: '所在地', value: '上海', href: '' },
+    { label: '所在地', value: '济南', href: '' },
   ],
 
   /* ---------------- 介绍视频 ---------------- */
@@ -48,7 +48,7 @@ const resume = {
   videos: [
     {
       key: 'hls/index.m3u8',
-      title: '自我介绍',
+      title: '作品展示',
       desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
       // 封面图，留空则用视频第一帧
       poster: '',
