@@ -199,6 +199,75 @@ h2::before {
   .card { padding: 18px 16px; }
 }
 
+/* ---------------------------- 分享二维码 ---------------------------- */
+
+.share-fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(47, 107, 255, .35);
+}
+.share-fab:hover { filter: brightness(1.07); }
+.share-fab svg { display: block; }
+
+.share-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .55);
+}
+.share-card {
+  width: min(360px, 100%);
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.share-card h3 { margin: 0 0 16px; font-size: 1.05rem; }
+.share-qr {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.share-qr svg { display: block; width: 220px; height: auto; }
+.share-url {
+  margin: 14px 0 16px;
+  font-size: .82rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+.share-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.share-actions button {
+  font: inherit;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.share-actions button.ghost { background: var(--accent-soft); color: var(--accent); }
+.share-tip { margin: 14px 0 0; font-size: .75rem; color: var(--muted); }
+
 @media print {
   body { background: #fff; }
   .hero { background: #fff; color: #000; }
@@ -206,4 +275,5 @@ h2::before {
   .contacts a { color: #333; }
   .nav, .videos { display: none; }
   .card { box-shadow: none; break-inside: avoid; }
+  .share-fab, .share-mask { display: none !important; }
 }

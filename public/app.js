@@ -32,6 +32,7 @@ async function boot() {
   (data.sections || []).forEach((s) => content.append(renderSection(s)));
 
   renderFooter(data.profile || {});
+  renderShare();
 }
 
 /* ------------------------------ 渲染 ------------------------------ */
@@ -259,4 +260,115 @@ function renderVideoCard(video) {
 function renderFooter(profile) {
   const year = new Date().getFullYear();
   $('[data-foot]').textContent = `© ${year} ${profile.name || ''} · Powered by Cloudflare Workers & R2`;
+}
+
+/* --------------------------- 分享：生成二维码 --------------------------- */
+
+function renderShare() {
+  // 只分享站点路径本身：不带 hash / 查询串，避免把某次签名之类的临时参数带出去
+  const url = location.origin + location.pathname;
+
+  const fab = el('button', 'share-fab');
+  fab.type = 'button';
+  fab.setAttribute('aria-label', '分享本页二维码');
+  fab.innerHTML =
+    '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">' +
+    '<path fill="currentColor" d="M18 16.1a3 3 0 0 0-2 .8l-7.1-4.2a3 3 0 0 0 0-1.4L16 7.1a3 3 0 1 0-1-2.1' +
+    'l-7.1 4.2a3 3 0 1 0 0 5.6L15 18.9a3 3 0 1 0 3-2.8Z"/></svg><span>分享</span>';
+
+  const mask = el('div', 'share-mask');
+  mask.hidden = true;
+  mask.innerHTML =
+    '<div class="share-card" role="dialog" aria-modal="true" aria-labelledby="share-title">' +
+    '<h3 id="share-title">扫码在手机上查看</h3>' +
+    '<div class="share-qr"></div>' +
+    '<p class="share-url"></p>' +
+    '<div class="share-actions">' +
+    '<button type="button" class="share-copy">复制链接</button>' +
+    '<button type="button" class="share-save">保存二维码</button>' +
+    '<button type="button" class="share-close ghost">关闭</button>' +
+    '</div>' +
+    '<p class="share-tip">二维码内容只有本页网址，不含任何个人信息</p>' +
+    '</div>';
+
+  const qrBox = $('.share-qr', mask);
+  $('.share-url', mask).textContent = url;
+
+  // 二维码只在第一次打开弹窗时生成
+  let built = false;
+  const build = () => {
+    if (built || typeof qrcode === 'undefined') return false;
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    qrBox.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2 });
+    built = true;
+    return true;
+  };
+
+  const close = () => {
+    mask.hidden = true;
+  };
+
+  fab.addEventListener('click', () => {
+    if (!build()) {
+      fab.hidden = true; // 二维码库没加载成功时不要留个点了没用的按钮
+      return;
+    }
+    mask.hidden = false;
+  });
+  mask.addEventListener('click', (e) => {
+    if (e.target === mask) close();
+  });
+  $('.share-close', mask).addEventListener('click', close);
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !mask.hidden) close();
+  });
+
+  const copyBtn = $('.share-copy', mask);
+  copyBtn.addEventListener('click', async () => {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      ok = true;
+    } catch {
+      // 非 HTTPS 或旧浏览器没有 Clipboard API，退回到选中再复制
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+      document.body.append(ta);
+      ta.select();
+      ok = document.execCommand('copy');
+      ta.remove();
+    }
+    copyBtn.textContent = ok ? '已复制' : '复制失败';
+    setTimeout(() => {
+      copyBtn.textContent = '复制链接';
+    }, 2000);
+  });
+
+  $('.share-save', mask).addEventListener('click', () => {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    const a = document.createElement('a');
+    a.href = qr.createDataURL(8, 2);
+    a.download = 'resume-qrcode.png';
+    document.body.append(a);
+    a.click();
+    a.remove();
+  });
+
+  // 手机浏览器有系统分享面板时多给一个入口
+  if (navigator.share) {
+    const sysBtn = el('button', 'share-sys', '系统分享');
+    sysBtn.type = 'button';
+    sysBtn.addEventListener('click', () => {
+      navigator.share({ title: document.title, url }).catch(() => {});
+    });
+    $('.share-actions', mask).prepend(sysBtn);
+  }
+
+  document.body.append(fab, mask);
 }

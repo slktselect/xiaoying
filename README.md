@@ -21,6 +21,17 @@ public/resume.json  简历内容 —— 你只需要改这个文件
 wrangler.toml       Workers / 静态资源 / R2 绑定 / 环境变量
 ```
 
+## 分享二维码
+
+页面右下角常驻「分享」按钮，点击弹出二维码：
+
+- 二维码**在本地生成**（自托管的 `public/vendor/qrcode.js`，`qrcode-generator`），
+  不会把网址发给任何外部接口，也不依赖 CDN；
+- 内容是 `location.origin + location.pathname`，只带站点路径，不含 hash / 查询串；
+- 弹窗里可复制链接（无 Clipboard API 时退回 `execCommand`）、保存二维码 PNG；
+  手机浏览器会额外出现「系统分享」（`navigator.share`）；
+- 点击遮罩、按 `Esc`、`关闭` 都能关掉；打印时按钮与弹窗都不输出。
+
 ## 路由
 
 | 方法 | 路径 | 说明 |
