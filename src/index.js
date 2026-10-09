@@ -175,12 +175,14 @@ async function serveVideo(request, env, url, ip) {
     start = r.start;
     end = r.end;
     status = 206;
-  }
 
-  // 限制单次 Range 的字节数，避免被大量请求把 R2 Class B 操作次数放大
-  const maxRange = Number(env.MAX_RANGE_BYTES || 0);
-  if (maxRange > 0 && end - start + 1 > maxRange) {
-    end = Math.min(end, start + maxRange - 1);
+    // 仅在客户端显式发 Range 时才限制单次返回字节数。
+    // 注意：不能对"完整请求"（无 Range）做截断，否则 Content-Length 会小于真实文件大小，
+    // 浏览器会以为视频只有这么长，导致播放提前结束。
+    const maxRange = Number(env.MAX_RANGE_BYTES || 0);
+    if (maxRange > 0 && end - start + 1 > maxRange) {
+      end = Math.min(end, start + maxRange - 1);
+    }
   }
 
   const length = end - start + 1;
