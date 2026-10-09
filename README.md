@@ -105,6 +105,11 @@ npx wrangler secret put SIGN_TOKEN
 npm run deploy      # 先 vite build 生成 dist/，再 wrangler deploy
 ```
 
+> **用 Cloudflare 的 Git 自动构建时**：平台默认只执行 `npx wrangler deploy`，不会跑 `npm run build`，
+> 会报 `The directory specified by the "assets.directory" field ... does not exist: dist`。
+> `wrangler.toml` 里已配置 `[build] command = "npm run build"`，wrangler 会先构建再上传。
+> 如果你在 Dashboard 里另外填了 Build command，填 `npm run build` 即可，不要留空。
+
 部署后输出形如 `https://xiaoying.<subdomain>.workers.dev`。
 
 日常开发：
