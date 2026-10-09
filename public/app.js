@@ -173,6 +173,8 @@ function renderVideos(videos) {
   return wrap;
 }
 
+const isHls = (key) => /\.m3u8$/i.test((key || '').trim());
+
 function renderVideoCard(video) {
   const box = el('div');
 
@@ -185,6 +187,8 @@ function renderVideoCard(video) {
   media.playsInline = true;
   media.preload = 'metadata';
   if (video.poster) media.poster = video.poster;
+
+  let hls = null;
 
   const setState = (msg, retry) => {
     media.hidden = true;
@@ -207,13 +211,40 @@ function renderVideoCard(video) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { url } = await res.json();
-      media.src = url;
+
+      if (isHls(video.key)) attachHls(url);
+      else media.src = url;
+
       media.hidden = false;
       state.hidden = true;
       // 播放地址有有效期，失败时引导用户重新签发
       media.onerror = () => setState('视频加载失败或链接已过期', true);
     } catch (e) {
       setState(`播放地址获取失败：${e.message}`, true);
+    }
+  }
+
+  /**
+   * HLS 播放：桌面版 Chrome/Edge 不支持原生 HLS，需要 hls.js；
+   * Safari / iOS 原生支持，直接用 video.src 即可（更省电）。
+   */
+  function attachHls(url) {
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    media.removeAttribute('src');
+    if (window.Hls && window.Hls.isSupported()) {
+      hls = new window.Hls({ enableWorker: true, backBufferLength: 30 });
+      hls.on(window.Hls.Events.ERROR, (_evt, data) => {
+        if (data.fatal) setState('视频加载失败或链接已过期', true);
+      });
+      hls.loadSource(url);
+      hls.attachMedia(media);
+    } else if (media.canPlayType('application/vnd.apple.mpegurl')) {
+      media.src = url;
+    } else {
+      setState('当前浏览器不支持 HLS 播放', false);
     }
   }
 

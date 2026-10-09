@@ -13,7 +13,7 @@
   ],
   "videos": [
     {
-      "key": "gna.mp4",
+      "key": "hls/index.m3u8",
       "title": "自我介绍",
       "desc": "存放于 Cloudflare R2，播放地址由 Worker 临时签发，页面刷新会自动续期。",
       "poster": ""

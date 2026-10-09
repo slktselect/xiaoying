@@ -160,6 +160,18 @@ async function serveVideo(request, env, url, ip) {
   const size = head.size;
   const headers = baseHeaders(head, key, env, exp);
 
+  // HLS 播放列表：把里面的分片地址逐个改写成带签名的地址。
+  // 播放器按相对路径请求分片时不会继承播放列表 URL 上的 exp/sig，
+  // 服务端不改写的话，所有分片请求都会因为缺签名被 403。
+  if (isPlaylist(key)) {
+    const obj = await env.BUCKET.get(key);
+    if (!obj) return text('Not Found', 404);
+    const body = enc.encode(await rewritePlaylist(await obj.text(), key, exp, env, ip));
+    headers.set('content-type', 'application/vnd.apple.mpegurl');
+    headers.set('content-length', String(body.byteLength));
+    return new Response(body, { status: 200, headers });
+  }
+
   let start = 0;
   let end = size - 1;
   let status = 200;
@@ -230,7 +242,45 @@ function keyAllowed(key, env) {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  return allow.length === 0 || allow.includes(key);
+  if (allow.length === 0) return true;
+  // 支持 `hls/*` 这种前缀通配，避免 HLS 几十个分片要逐个写进白名单
+  return allow.some((p) => p === key || (p.endsWith('*') && key.startsWith(p.slice(0, -1))));
+}
+
+function isPlaylist(key) {
+  return key.toLowerCase().endsWith('.m3u8');
+}
+
+/**
+ * 把 m3u8 里的分片地址逐个换成带签名的 /v/ 地址。
+ * 所有分片共用同一个 exp（与播放列表同窗口），CDN 与浏览器都能安全缓存。
+ */
+async function rewritePlaylist(src, playlistKey, exp, env, ip) {
+  const dir = playlistKey.slice(0, playlistKey.lastIndexOf('/') + 1);
+  const out = [];
+  for (const line of src.split(/\r?\n/)) {
+    // #EXT-X-MAP / #EXT-X-KEY 里带 URI="..." 的属性行
+    const attr = line.match(/^#EXT-X-(?:MAP|KEY):.*URI="([^"]+)"/);
+    if (attr) {
+      out.push(line.replace(attr[1], await signedPath(attr[1], dir, exp, env, ip)));
+      continue;
+    }
+    if (!line.trim() || line.startsWith('#')) {
+      out.push(line);
+      continue;
+    }
+    out.push(await signedPath(line.trim(), dir, exp, env, ip));
+  }
+  return out.join('\n');
+}
+
+async function signedPath(uri, dir, exp, env, ip) {
+  // 已经是完整 URL（外部 CDN）的分片保持原样
+  if (/^https?:\/\//i.test(uri)) return uri;
+  const key = normalizeKey(uri.startsWith('/') ? uri.slice(1) : dir + uri);
+  if (!key) return uri;
+  const sig = await makeSig(env.SIGN_SECRET, payload(env, key, exp, ip));
+  return `/v/${encodeURI(key)}?exp=${exp}&sig=${sig}`;
 }
 
 function normalizeKey(raw) {
@@ -281,9 +331,15 @@ function baseHeaders(head, key, env, exp) {
   const h = new Headers({
     'content-type': (head.httpMetadata && head.httpMetadata.contentType) || guessMime(key),
     'content-disposition': 'inline',
-    'cache-control': `public, max-age=${maxAge}`,
-    'cloudflare-cdn-cache-control': `max-age=${maxAge}`,
   });
+  const cacheMode = (env.CDN_CACHE_MODE || 'public').toLowerCase();
+  if (cacheMode === 'no-store') {
+    // 关闭 CDN 缓存：替换 R2 里的对象后能立刻生效（代价是每次都回源）
+    h.set('cache-control', 'private, no-store');
+  } else {
+    h.set('cache-control', `public, max-age=${maxAge}`);
+    h.set('cloudflare-cdn-cache-control', `max-age=${maxAge}`);
+  }
   const etag = head.httpEtag || head.etag;
   if (etag) h.set('etag', etag);
   if (head.uploaded) h.set('last-modified', new Date(head.uploaded).toUTCString());
