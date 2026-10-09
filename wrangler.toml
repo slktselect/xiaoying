@@ -76,8 +76,10 @@ CDN_CACHE_MODE = "public"
 # 只有在确实想压一次响应的体积时才设这个值（如 16777216 = 16 MiB）
 MAX_RANGE_BYTES = "0"
 
-# 播放链接有效期（秒），会向上取整到 SIGN_WINDOW 的整数倍
-PLAY_TTL = "300"
+# 播放链接有效期（秒），会向上取整到 SIGN_WINDOW 的整数倍。
+# HLS 会按需逐个拉取分片，300 秒太短（暂停一会儿再拖进度条就会过期），故放宽到 30 分钟；
+# 防盗链仍由 Referer 白名单 + 签名兜底。
+PLAY_TTL = "1800"
 
 # ---------- 敏感配置：用 Secret，不要写在这里 ----------
 # npx wrangler secret put SIGN_SECRET   # HMAC 签名密钥

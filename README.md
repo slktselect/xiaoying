@@ -107,6 +107,71 @@ PLAY_TTL = "300"                                             # 播放地址有�
 
 > 若绑定自定义域名或使用 Workers.dev 之外的入口，记得把对应域名加进 `ALLOW_REFERERS`。
 
+## HLS 分片播放（秒开）
+
+视频在 R2 里以 HLS 形式存放，播放器只拉取需要的分片，不必等整个文件下载完：
+
+```
+hls/index.m3u8   播放列表
+hls/seg_000.ts   2 秒分片
+hls/seg_001.ts
+...              共 31 个
+```
+
+### 用 FFmpeg 切片
+
+```powershell
+ffmpeg -i gna.mp4 `
+  -c:v libx264 -preset veryfast -crf 23 -maxrate 2400k -bufsize 4800k `
+  -pix_fmt yuv420p -g 48 -keyint_min 48 -sc_threshold 0 `
+  -c:a aac -b:a 128k -ar 44100 `
+  -f hls -hls_time 2 -hls_playlist_type vod -hls_flags independent_segments `
+  -hls_segment_filename "seg_%03d.ts" index.m3u8
+```
+
+**「秒开」的关键是 `-g 48`（约 2 秒一个关键帧）**，不是 `-hls_time`：
+
+| 方式 | 首片大小 | 起播 |
+| --- | --- | --- |
+| `-c copy`（不重编码） | 1.71 MB / 5.34 秒 | 要等整片下完 |
+| 重编码 + 2 秒关键帧 | 663 KB / 2 秒 | 约 0.5 秒 |
+
+原因：`-c copy` 只能在源文件**已存在的关键帧**处切断。本片源关键帧间隔 5.3 秒，
+所以就算写 `-hls_time 2`，分片还是 5 秒长；`-hls_time` 只有在关键帧足够密时才生效。
+总大小基本不变（16.77 MB vs 源 16.56 MB，平均 2232 kbps）。
+
+### Worker 侧：播放列表改写
+
+m3u8 里是**相对路径**（`seg_000.ts`），播放器按相对路径请求分片时**不会继承**播放列表 URL 上的
+`exp` / `sig`，分片请求会因缺签名被 403。所以 Worker 返回 `.m3u8` 时会把每个分片地址
+改写成带签名的 `/v/<key>?exp=&sig=`，且共用同一个 `exp`（与播放列表同窗口，便于 CDN 缓存）。
+
+`VIDEO_KEYS` 支持前缀通配（`hls/*`），不必把 31 个分片逐个写进白名单。
+
+### 前端
+
+桌面版 Chrome / Edge 不支持原生 HLS，需要 `hls.js`
+（已 vendored 到 `public/vendor/hls.light.min.js`，自托管，不依赖外部 CDN）；
+Safari / iOS 原生支持，直接走 `video.src`，不会走 hls.js。
+
+### 上传切片（重要）
+
+> ⚠️ 本项目环境里 **`wrangler r2 object put` 写入的对象 Worker 读不到**：
+> CLI 上传后 `wrangler r2 object get` 能取回，但 Worker 侧 `head()` 返回 404
+> （CLI 与 Worker 绑定解析到的不是同一个桶实例）。改用下面两种方式之一：
+
+1. **Cloudflare 控制台上传**（最省事）：R2 → `xiaoying-video` → 上传，先建 `hls/` 前缀再拖入全部文件。
+2. **REST API**（可脚本批量）：
+
+```powershell
+Invoke-RestMethod -Method Put `
+  -Uri "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/r2/buckets/xiaoying-video/objects/hls/seg_000.ts" `
+  -Headers @{ Authorization = "Bearer $token" } `
+  -InFile ".\seg_000.ts" -ContentType "video/mp2t"
+```
+
+分片 Content-Type 用 `video/mp2t`，播放列表用 `application/vnd.apple.mpegurl`。
+
 ## 用 S3 API 管理 R2 对象
 
 除了 `wrangler r2 object put`，也可以用标准 S3 工具（rclone、AWS CLI、Cyberduck 等）管理 `xiaoying-video`，
