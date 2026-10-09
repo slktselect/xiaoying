@@ -6,8 +6,8 @@ import tailwindcss from '@tailwindcss/vite';
 // Worker（签名 / 视频分发）在 worker/ 目录，不参与打包。
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // 旧版手写前端曾放在 public/，现在全部走 src/ + index.html 构建；
-  // 关掉 publicDir，避免旧文件被原样拷进 dist 覆盖构建产物。
+  // 不设 public 目录：所有资源都走 src/ 里的 import 参与构建，
+  // 避免 public/ 里的同名文件被原样拷进 dist 覆盖构建产物（历史上踩过）。
   publicDir: false,
   build: {
     outDir: 'dist',

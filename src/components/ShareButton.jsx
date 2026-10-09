@@ -73,7 +73,7 @@ export default function ShareButton({ config = {} }) {
 
       {open && (
         <div
-          className="no-print fixed inset-0 z-50 grid place-items-center bg-slate-900/55 p-5"
+          className="no-print fixed inset-0 z-50 grid place-items-center bg-slate-900/55 p-4 sm:p-5"
           onClick={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
           }}
@@ -81,7 +81,7 @@ export default function ShareButton({ config = {} }) {
           <div
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-[360px] rounded-2xl bg-white p-6 text-center shadow-xl"
+            className="max-h-[90dvh] w-full max-w-[360px] overflow-y-auto rounded-2xl bg-white p-5 text-center shadow-xl sm:p-6"
           >
             <h3 className="text-base font-semibold text-slate-900">
               {config.title || '扫码在手机上查看'}
@@ -98,7 +98,7 @@ export default function ShareButton({ config = {} }) {
                 <button
                   type="button"
                   onClick={systemShare}
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+                  className="rounded-lg bg-blue-600 px-3 py-2.5 text-sm text-white hover:bg-blue-700"
                 >
                   系统分享
                 </button>
@@ -106,21 +106,21 @@ export default function ShareButton({ config = {} }) {
               <button
                 type="button"
                 onClick={copy}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 px-3 py-2.5 text-sm text-white hover:bg-blue-700"
               >
                 {copied || '复制链接'}
               </button>
               <button
                 type="button"
                 onClick={save}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 px-3 py-2.5 text-sm text-white hover:bg-blue-700"
               >
                 保存二维码
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100"
+                className="rounded-lg bg-blue-50 px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-100"
               >
                 关闭
               </button>

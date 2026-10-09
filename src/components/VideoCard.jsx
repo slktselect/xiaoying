@@ -72,10 +72,18 @@ export default function VideoCard({ video }) {
       </div>
 
       <div className="relative bg-black">
+        {/*
+          playsInline / webkit-playsinline：iOS Safari 与微信内置浏览器不强制全屏，页内播放。
+          x5-*：微信 Android（X5 内核）需要这几个属性才会页内播放，否则会自动跳全屏。
+        */}
         <video
           ref={mediaRef}
           controls
           playsInline
+          webkit-playsinline="true"
+          x5-playsinline="true"
+          x5-video-player-type="h5-page"
+          x5-video-player-fullscreen="true"
           preload="metadata"
           poster={video.poster || undefined}
           className="aspect-video w-full"

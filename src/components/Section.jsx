@@ -1,8 +1,8 @@
 function Item({ item }) {
   return (
-    <div className="print-plain rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="print-plain rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="font-semibold text-slate-900">{item.title}</h3>
+        <h3 className="min-w-0 break-words font-semibold text-slate-900">{item.title}</h3>
         {item.period && <span className="text-xs text-slate-500">{item.period}</span>}
       </div>
 

@@ -3,8 +3,8 @@ export default function Hero({ profile, contacts }) {
 
   return (
     <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex w-full max-w-3xl gap-5 px-4 py-10">
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-600 text-3xl font-semibold text-white">
+      <div className="mx-auto flex w-full max-w-3xl gap-4 px-4 py-8 sm:gap-5 sm:py-10">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-600 text-2xl font-semibold text-white sm:h-20 sm:w-20 sm:text-3xl">
           {profile.avatar ? (
             <img src={profile.avatar} alt={profile.name || '头像'} className="h-full w-full object-cover" />
           ) : (
@@ -22,14 +22,14 @@ export default function Hero({ profile, contacts }) {
           )}
 
           {contacts.length > 0 && (
-            <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
               {contacts.map((c) => (
-                <li key={`${c.label}-${c.value}`} className="text-slate-600">
+                <li key={`${c.label}-${c.value}`} className="max-w-full break-words text-slate-600">
                   <span className="text-slate-400">{c.label}：</span>
                   {c.href ? (
                     <a
                       href={c.href}
-                      className="text-slate-700 underline-offset-2 hover:text-blue-600 hover:underline"
+                      className="inline-block text-slate-700 underline-offset-2 hover:text-blue-600 hover:underline"
                       {...(c.href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                     >
                       {c.value}

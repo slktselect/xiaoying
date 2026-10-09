@@ -34,7 +34,7 @@ export default function App() {
       <Hero profile={profile} contacts={contacts} />
       <Nav items={navItems} />
 
-      <main className="mx-auto w-full max-w-3xl px-4 pb-16">
+      <main className="mx-auto w-full max-w-3xl px-4 pb-10 sm:pb-16">
         {visibleVideos.length > 0 && (
           <section id="videos" className="scroll-mt-20 pt-8">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">视频介绍</h2>
@@ -49,7 +49,8 @@ export default function App() {
         ))}
       </main>
 
-      <footer className="no-print border-t border-slate-200 py-8 text-center text-xs text-slate-400">
+      {/* 底部留出分享按钮的高度，免得它压住页脚 */}
+      <footer className="no-print border-t border-slate-200 px-4 pt-8 pb-24 text-center text-xs text-slate-400 sm:pb-8">
         {footText}
       </footer>
 
