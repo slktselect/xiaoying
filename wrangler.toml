@@ -29,9 +29,10 @@ bucket_name = "xiaoying-video"
 VIDEO_KEYS = "gna.mp4"
 
 # /api/video 与 /v/* 使用的 Referer 白名单，逗号分隔；留空 = 不校验
-# 部署后请把你的域名填进来，例如：
-# ALLOW_REFERERS = "xiaoying.xxx.workers.dev,resume.example.com"
-ALLOW_REFERERS = ""
+# 只有白名单来源的页面才能拿到播放地址 / 播放视频（防盗链核心）
+# 若以后要嵌到别的站点，把对应域名加进来；
+# 本地 npm run dev 调试时临时追加 localhost、127.0.0.1，否则会 403
+ALLOW_REFERERS = "xiaoying.slkt-evan.workers.dev"
 
 # 无 Referer 的直接访问是否放行（ALLOW_REFERERS 非空时生效）
 ALLOW_EMPTY_REFERER = "0"
