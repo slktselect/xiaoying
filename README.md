@@ -1,32 +1,49 @@
 # xiaoying
 
-托管在 Cloudflare 的**在线简历站点**。页面由 Workers 静态资源直出，简历中的视频存放在 R2，
-通过 Worker 签发**短期签名 URL + Referer 白名单**做防盗链，支持拖动进度条播放。
+托管在 Cloudflare 的**在线简历站点**。前端是 **React 19 + Tailwind CSS 4**（Vite 构建），
+产物由 Workers 静态资源直出；简历中的视频存放在 R2，通过 Worker 签发
+**短期签名 URL + Referer 白名单**做防盗链，按 HLS 分片播放，秒开可拖动进度条。
 
 构建 / 部署命令：
 
 ```powershell
-npx wrangler deploy
+npm install
+npm run deploy      # = vite build + wrangler deploy
 ```
+
+## 改简历内容（只需要改一个文件）
+
+所有文字都在 **`src/resume.config.js`**，字段带中文注释：姓名、手机号、邮箱、岗位、
+一句话简介、技能、工作经历、项目经历、教育背景、视频、页脚。
+
+```js
+profile: { name: '你的姓名', title: '应聘岗位：…', avatar: '', summary: '…' },
+contacts: [{ label: '电话', value: '138-0000-0000', href: 'tel:13800000000' }, …],
+sections: [{ id: 'work', title: '工作经历', items: [{ title, subtitle, period, meta, bullets, tags }] }],
+```
+
+改完保存 → `npm run deploy`。本地预览：`npm run dev`（改配置会热更新）。
 
 ## 项目结构
 
 ```
-src/index.js        Worker：视频签名校验 + R2 回源 + 静态资源兜底
-src/usage.js        每日用量统计与免费额度护栏（Workers KV）
-public/index.html   简历页面骨架
-public/styles.css   样式（响应式 + 打印优化）
-public/app.js       读取 resume.json 渲染页面，向 Worker 换取视频播放地址
-public/resume.json  简历内容 —— 你只需要改这个文件
-wrangler.toml       Workers / 静态资源 / R2 绑定 / 环境变量
+src/resume.config.js    ← 简历内容，只改这里
+src/App.jsx             页面组装（Hero / 导航 / 视频 / 分区 / 分享）
+src/components/         Hero、Nav、Section、VideoCard、ShareButton
+src/main.jsx            React 入口
+src/index.css           Tailwind 入口 + 打印样式
+worker/index.js         Worker：视频签名校验 + R2 回源 + HLS 列表改写
+worker/usage.js         每日用量统计与免费额度护栏（Workers KV）
+index.html              Vite 入口
+vite.config.js          React / Tailwind 插件，产物输出到 dist/
+wrangler.toml           Workers / 静态资源(dist) / R2 绑定 / 环境变量
 ```
 
 ## 分享二维码
 
 页面右下角常驻「分享」按钮，点击弹出二维码：
 
-- 二维码**在本地生成**（自托管的 `public/vendor/qrcode.js`，`qrcode-generator`），
-  不会把网址发给任何外部接口，也不依赖 CDN；
+- 二维码**在本地生成**（`qrcode.react`，随包一起构建），不会把网址发给任何外部接口，也不依赖 CDN；
 - 内容是 `location.origin + location.pathname`，只带站点路径，不含 hash / 查询串；
 - 弹窗里可复制链接（无 Clipboard API 时退回 `execCommand`）、保存二维码 PNG；
   手机浏览器会额外出现「系统分享」（`navigator.share`）；
@@ -36,7 +53,7 @@ wrangler.toml       Workers / 静态资源 / R2 绑定 / 环境变量
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/`、`/resume.json`、`/styles.css`、`/app.js` | Workers 静态资源直出，不消耗 Worker 调用 |
+| GET | `/`、`/assets/*` | Workers 静态资源直出（Vite 构建产物），不消耗 Worker 调用 |
 | GET | `/api/video?key=<对象key>` | 校验来源后签发短期播放地址，前端播放器调用 |
 | GET | `/v/<key>?exp=<秒>&sig=<签名>` | 校验签名后从 R2 返回视频，支持 `Range` → `206` |
 | GET | `/sign?key=&ttl=` | 业务后端用的签发接口，需 `Authorization: Bearer $SIGN_TOKEN` |
@@ -59,7 +76,7 @@ npx wrangler r2 bucket create xiaoying-video
 
 ### 2. 改简历内容
 
-编辑 `public/resume.json`（其中的 `videos[].key` 就是 R2 里的对象名）。
+编辑 `src/resume.config.js`（其中 `videos[].key` 就是 R2 里的对象名）。
 示例数据均为占位内容，请替换成自己的真实信息。
 
 ### 3. 上传视频
@@ -85,7 +102,7 @@ npx wrangler secret put SIGN_TOKEN
 ### 5. 部署
 
 ```powershell
-npx wrangler deploy
+npm run deploy      # 先 vite build 生成 dist/，再 wrangler deploy
 ```
 
 部署后输出形如 `https://xiaoying.<subdomain>.workers.dev`。
@@ -93,10 +110,14 @@ npx wrangler deploy
 日常开发：
 
 ```powershell
-npm run dev     # 本地调试（如需 /sign，先 cp .dev.vars.example .dev.vars）
-npm run tail    # 线上实时日志
-npx wrangler r2 object list xiaoying-video
+npm run dev         # Vite 开发服务器(5173)，改 resume.config.js 实时热更新
+npm run dev:worker  # 另开一个终端跑 wrangler dev(8787)，/api 与 /v 会被 vite 代理过去
+npm run build       # 只构建，产物在 dist/
+npm run tail        # 线上实时日志
 ```
+
+> 单独跑 `npm run dev` 时视频接口会 404（Worker 没起来），
+> 想看视频就在另一个终端再跑 `npm run dev:worker`（需先 `npm run build` 生成过 dist/）。
 
 ## 防盗链配置
 

@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* 打印 / 导出 PDF 时：去掉阴影与固定元素，让简历落在纸上 */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .print-plain {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
