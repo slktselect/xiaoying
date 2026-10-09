@@ -12,6 +12,11 @@
 
 * { box-sizing: border-box; }
 
+/* 必须显式声明：下面的 .video-state { display: grid } 与
+   .video-frame video { display: block } 会盖掉浏览器默认的 [hidden]{display:none}，
+   导致 JS 里 element.hidden = true 失效（遮罩挡住了播放器的点击） */
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; }
 
 body {
