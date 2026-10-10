@@ -43,19 +43,18 @@ const resume = {
   ],
 
   /* ---------------- 介绍视频 ---------------- */
-  // key 必须是 worker 侧 VIDEO_KEYS 白名单允许的对象名
-  // 目前 R2 里存的是 HLS 切片（hls/index.m3u8），改成 mp4 也能播
-  /* ---------------- 介绍视频 ---------------- */
-  // key 必须是 worker 侧 VIDEO_KEYS 白名单允许的对象名
-  // 目前 R2 里存的是 HLS 切片（hls/index.m3u8），改成 mp4 也能播
+  // 每条必须有 section 字段（分区名）。
+  // 建议用 video-workflow/slice.py 走路径 1 或路径 2 来追加条目；手动加也行。
+  // R2 路径统一是 videos/<slug>/index.m3u8（白名单 videos/* 已在 wrangler.toml）。
   videos: [
-    {
-      key: 'hls/index.m3u8',
-      title: 'DefaultAttract',
-      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-      // 封面图，留空则用视频第一帧
-      poster: '',
-    },
+    // 示例（运行 slice.py 后会自动追加在下面，旧的会保留）：
+    // {
+    //   section: 'MCN账号视频',
+    //   key: 'videos/xxx/index.m3u8',
+    //   title: '示例作品',
+    //   desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
+    //   poster: '',
+    // },
   ],
 
   /* ---------------- 正文分区 ---------------- */

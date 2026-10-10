@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import resume from './resume.config.js';
 import Hero from './components/Hero.jsx';
 import Nav from './components/Nav.jsx';
-import VideoCard from './components/VideoCard.jsx';
+import VideoGallery from './components/VideoGallery.jsx';
 import Section from './components/Section.jsx';
 import ShareButton from './components/ShareButton.jsx';
 
@@ -34,13 +34,11 @@ export default function App() {
       <Hero profile={profile} contacts={contacts} />
       <Nav items={navItems} />
 
-      <main className="mx-auto w-full max-w-3xl px-4 pb-10 sm:pb-16">
+      <main className="mx-auto w-full max-w-5xl px-4 pb-10 sm:pb-16">
         {visibleVideos.length > 0 && (
           <section id="videos" className="scroll-mt-20 pt-8">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">视频介绍</h2>
-            {visibleVideos.map((v) => (
-              <VideoCard key={`${v.key}-${v.title}`} video={v} />
-            ))}
+            <VideoGallery videos={visibleVideos} />
           </section>
         )}
 
