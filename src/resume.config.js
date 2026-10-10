@@ -21,7 +21,7 @@
  *   - 不需要的分区直接删掉或设 hidden: true，导航会自动消失
  */
 
-const resume =  {
+const resume = {
   /* ---------------- 基本信息 ---------------- */
   profile: {
     name: '史志颖',
@@ -53,9 +53,16 @@ const resume =  {
       // 封面图，留空则用视频第一帧
       poster: '',
     },
+    {
+      key: 'new/index.m3u8',
+      title: 'DefaultAttract',
+      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
+      // 封面图，留空则用视频第一帧
+      poster: '',
+    },
   ],
 
- /* ---------------- 正文分区 ---------------- */
+  /* ---------------- 正文分区 ---------------- */
   sections: [
     {
       id: 'skills',
