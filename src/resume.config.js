@@ -51,18 +51,42 @@ const resume = {
       title: 'MCN账号视频',
       desc: '此文件夹视频是我在mcn公司（贝壳视频）就职期间制作。基本为当时公司的原创孵化账号，基本由我全程 编 拍 剪。',
       videos: [
-        { key: 'videos/溜溜梅/index.m3u8', title: '溜溜梅', desc: '', poster: '' },
-        { key: 'videos/红酒账号/index.m3u8', title: '红酒账号', desc: '', poster: '' },
-        { key: 'videos/芒果布丁/index.m3u8', title: '芒果布丁', desc: '', poster: '' },
+        {
+          key: 'videos/溜溜梅/index.m3u8',
+          title: '溜溜梅',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/溜溜梅/poster.jpg',
+        },
+        {
+          key: 'videos/红酒账号/index.m3u8',
+          title: '红酒账号',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/红酒账号/poster.jpg',
+        },
+        {
+          key: 'videos/芒果布丁/index.m3u8',
+          title: '芒果布丁',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/芒果布丁/poster.jpg',
+        }
       ],
     },
     {
       title: '网剧（灵瞳鉴宝）',
       desc: '此剧为几年前我业余时间剪辑制作，原素材由片方提供。我只负责剪辑。\n按协议当时不能留存原片。目前此剧已经过保密期，向片方的朋友要了两条原始成片\n（完全成片找不到了，据说播放效果一般，没人专门留存）',
       videos: [
-        { key: 'videos/样片-0-457/index.m3u8', title: '样片 0.457', desc: '', poster: '' },
+        {
+          key: 'videos/样片-0-457/index.m3u8',
+          title: '样片 0.457',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/样片-0-457/poster.jpg',
+        }
       ],
-    },
+    }
 
     /* ---------------- 正文分区 ---------------- */
     {

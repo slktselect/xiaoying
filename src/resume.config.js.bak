@@ -42,28 +42,29 @@ const resume = {
     { label: '期望薪资', value: '9‑14K', href: '' },
   ],
 
-  /* ---------------- 介绍视频 ---------------- */
-  // key 必须是 worker 侧 VIDEO_KEYS 白名单允许的对象名
-  // 目前 R2 里存的是 HLS 切片（hls/index.m3u8），改成 mp4 也能播
-  videos: [
-    {
-      key: 'hls/index.m3u8',
-      title: '作品展示',
-      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-      // 封面图，留空则用视频第一帧
-      poster: '',
-    },
-    {
-      key: 'new/index.m3u8',
-      title: 'DefaultAttract',
-      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-      // 封面图，留空则用视频第一帧
-      poster: '',
-    },
-  ],
-
-  /* ---------------- 正文分区 ---------------- */
+  /* ---------------- 介绍视频（按分区嵌套） ---------------- */
+  // 每个 section：title 必填、desc 简介（可空）、videos 数组
+  // 用 video-workflow/slice.py 路径 1/2 追加；手动加也行
+  // 与正文分区的区别：这里有 videos 字段（数组）；正文分区用 items 字段
   sections: [
+    {
+      title: 'MCN账号视频',
+      desc: '此文件夹视频是我在mcn公司（贝壳视频）就职期间制作。基本为当时公司的原创孵化账号，基本由我全程 编 拍 剪。',
+      videos: [
+        { key: 'videos/溜溜梅/index.m3u8', title: '溜溜梅', desc: '', poster: '' },
+        { key: 'videos/红酒账号/index.m3u8', title: '红酒账号', desc: '', poster: '' },
+        { key: 'videos/芒果布丁/index.m3u8', title: '芒果布丁', desc: '', poster: '' },
+      ],
+    },
+    {
+      title: '网剧（灵瞳鉴宝）',
+      desc: '此剧为几年前我业余时间剪辑制作，原素材由片方提供。我只负责剪辑。\n按协议当时不能留存原片。目前此剧已经过保密期，向片方的朋友要了两条原始成片\n（完全成片找不到了，据说播放效果一般，没人专门留存）',
+      videos: [
+        { key: 'videos/样片-0-457/index.m3u8', title: '样片 0.457', desc: '', poster: '' },
+      ],
+    },
+
+    /* ---------------- 正文分区 ---------------- */
     {
       id: 'skills',
       title: '专业技能',
