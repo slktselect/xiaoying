@@ -32,7 +32,7 @@ bucket_name = "xiaoying-video"
 # ---------- 明文配置（非敏感） ----------
 [vars]
 # 允许通过 /api/video 播放的 R2 对象 key，逗号分隔；留空 = 不限制（建议生产环境务必配置）
-VIDEO_KEYS = "gna.mp4,hls/*"
+VIDEO_KEYS = "hls/*,new/*"
 
 # /api/video 与 /v/* 使用的 Referer 白名单，逗号分隔；留空 = 不校验
 # 只有白名单来源的页面才能拿到播放地址 / 播放视频（防盗链核心）
