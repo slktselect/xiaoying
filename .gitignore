@@ -1,6 +1,9 @@
 node_modules/
 .wrangler/
 dist/
+
+# 视频处理工作目录：原始 mp4 / 切片产物 / 本地文档，都不进仓库
+video-workflow/
 .dev.vars
 *.tar
 .DS_Store
