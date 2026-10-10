@@ -9,22 +9,29 @@
 
 简历的视频区块当前是扁平的一列卡片（`videos: [...]`）。用户希望按"分区"组织（如个人介绍、作品集、影视后期），并实现"主画面 + 缩略栏"的画廊式交互。配套地，上传脚本也要能在切片/导入时给视频分到分区。
 
-**用户决策**：旧配置里现有的 `videos` 条目（不带 `section` 字段）**全部删除**，新设计**不向后兼容**。`section` 是必填字段，不再有"其他"分区兜底。R2 桶里的旧对象保留（不属于本次范围）。
+**用户决策**：
+- 旧配置里现有的 `videos` 条目（不带 `section` 字段）**全部删除**，新设计**不向后兼容**
+- 每个分区支持填一段简介（`desc`）
+- 视频嵌套在分区下：`sections: [{title, desc, videos: [...]}]`
+
+R2 桶里的旧对象保留（不属于本次范围）。
 
 ## 目标
 
-1. 视频按 `section` 字段分组，分区作为页内二级标题（不进导航）
-2. 同时**只有一个**视频播放；点击缩略图会停旧的、播新的
-3. **默认全部不播放**，等用户主动点
-4. 上传脚本能交互式给视频分配分区、支持新建分区
-5. 脚本能只把 R2 上已有视频挂进配置（不重新切片/上传）
+1. 视频按 `section` 嵌套分组，每个分区有标题 + 简介 + 视频列表
+2. 分区作为页内二级标题（不进导航）
+3. 同时**只有一个**视频播放；点击缩略图会停旧的、播新的
+4. **默认全部不播放**，等用户主动点
+5. 上传脚本能交互式给视频分配分区、支持新建分区、填写分区简介
+6. 脚本能只把 R2 上已有视频挂进配置（不重新切片/上传）
+7. 脚本能整理分区：重命名、改简介、跨分区移动视频
 
 ## 非目标
 
-- 改 R2 存储路径结构（仍是 `videos/<slug>/`）
+- 改 R2 存储路径结构（仍是 `videos/<file-slug>/`）
 - 改 Worker 代码（`VIDEO_KEYS` 仍按 R2 前缀匹配）
 - 改 `wrangler.toml`
-- 自动从视频里提取元数据（时长、码率、自动缩略图等）
+- 自动从视频里提取元数据
 
 ---
 
@@ -33,61 +40,69 @@
 ### 1. 配置（`src/resume.config.js`）
 
 ```js
-videos: [
-  { section: '个人介绍', key: 'videos/intro/index.m3u8', title: '...', desc: '...', poster: '' },
-  { section: '作品集',   key: 'videos/xxx/index.m3u8',   title: '...', desc: '...', poster: '' },
+sections: [
+  {
+    title: 'MCN账号视频',
+    desc: '代运营 MCN 账号短视频（抖音/快手/小红书）',
+    videos: [
+      { key: 'videos/intro/index.m3u8',  title: '默认作品', desc: '', poster: '' },
+      { key: 'videos/demo1/index.m3u8',  title: '代运营 demo 1', desc: '', poster: '' },
+    ],
+  },
+  {
+    title: '网剧（灵瞳鉴宝）',
+    desc: '网剧项目相关作品',
+    videos: [
+      { key: 'videos/pilot/index.m3u8', title: '先导片', desc: '', poster: '' },
+    ],
+  },
 ]
 ```
 
-- `section` **必填**；前端解析时缺字段直接报错
-- 分区顺序 = 首次出现在 `videos` 数组的顺序
-- 同分区视频顺序 = 数组顺序
-- **不向后兼容**：现有 `videos: [{...}]`（无 `section` 字段的）会在实施时**整段清空**；新视频必须由脚本写入并带 `section`
+- `sections` 替代旧的顶层 `videos` 数组
+- 每个 section：
+  - `title` 必填
+  - `desc` 可选（简介）
+  - `videos` 数组，元素是 `{key, title, desc?, poster?}`
+- section 顺序 = 在 `sections` 数组的顺序
+- section 内视频顺序 = 在 `videos` 数组的顺序
 
 ### 2. 布局
 
 **宽屏（≥ lg / 1024px）**
-- 左 2/3：大画面（hero），16:9
+- 左 2/3：hero（16:9）
 - 右 1/3：分区列表（垂直滚动）
-  - 每个分区：`h3` 分区标题 + 缩略卡片垂直堆叠
+  - 每个分区：`h3` 标题 + `desc`（一段灰色小字）+ 缩略卡垂直堆叠
   - 当前 hero 所属的缩略卡有视觉高亮（边框/标记）
 
 **窄屏（< lg）**
 - 上：hero（满宽，16:9）
-- 下：分区 chips 横排（可横滑）+ 当前分区的缩略卡横排
-- 分区 chips 当前激活 = hero 所属分区；点 chip 滚到对应横排
+- 下：分区 chips 横排（可横滑）
+- 当前分区的 `desc` 段落 + 缩略卡横排
 
-### 3. 播放模型
+### 3. 播放模型（不变）
 
-- **同时只播一个**：通过共享的 `activeKey` 状态控制
-- **初始状态**：`videos[0]` 作为 hero，**不自动播放**（显示 poster）
-- **点击 hero 自身的播放按钮**：当前 hero 开始播放
-- **点击缩略图**：
-  1. 该缩略图成为新的 hero
-  2. 旧 hero（如果正在播放）立即 `pause()` + `currentTime = 0`
-  3. 新 hero 自动 `play()`
-- **点击 hero 暂停按钮**：当前 hero 暂停，其他不变
-- **切换 hero 的视觉过渡**：150ms 淡入淡出
+- 同时只播一个
+- 默认全不播放
+- 点击缩略图：停旧、播新
+- hero 用 `key={activeKey}` 重建释放 hls.js
 
 ### 4. 组件结构
 
 | 文件 | 状态 | 职责 |
 | --- | --- | --- |
-| `src/components/VideoGallery.jsx` | 新增 | 顶层布局；管理 `activeKey`；分宽屏/窄屏两套 |
-| `src/components/VideoHero.jsx` | 新增 | 大画面；用 `useVideoPlayer` hook 管播放；接收 `activeKey` 变化时自动 stop |
-| `src/components/VideoThumb.jsx` | 新增 | 缩略卡；显示 poster + title；点击触发切换；当前 active 的高亮 |
-| `src/components/SectionGroup.jsx` | 新增 | 单分区的缩略卡容器（宽屏垂直、窄屏横排） |
-| `src/components/VideoCard.jsx` | 改写 | 把内部 fetchUrl / 续期 / hls.js 加载抽到 `useVideoPlayer` hook；保留"独立卡片"渲染逻辑（用 `?embed=card` 时仍可单独用） |
-| `src/components/useVideoPlayer.js` | 新增 | 共用 hook：fetch signed URL、HLS 加载、续期定时器；返回 `{ mediaRef, status, reload }` |
-| `src/App.jsx` | 修改 | `videos` 区从 `videos.map(VideoCard)` 换成 `<VideoGallery videos={visibleVideos} />` |
-| `src/index.css` | 微调 | 加缩略卡和分区的少量样式 |
+| `src/components/VideoGallery.jsx` | 改 | 从 `sections` 读取（替代 `videos`）；管理 `activeKey` |
+| `src/components/SectionGroup.jsx` | 改 | 渲染分区标题 + desc + 缩略卡 |
+| `src/components/VideoHero.jsx` | 不变 | 大画面；用 `useVideoPlayer` hook |
+| `src/components/VideoThumb.jsx` | 不变 | 缩略卡 |
+| `src/components/useVideoPlayer.js` | 不变 | 共用 hook |
+| `src/components/VideoCard.jsx` | 改 | 不再被 App 引用；保留作 fallback / embed 模式 |
+| `src/App.jsx` | 改 | 改用 `<VideoGallery sections={visibleSections} />` |
 
 **关键实现点**：
-
-- `VideoHero` 用 `key={activeKey}` 让 React 在切换时**重建** DOM 节点（彻底释放旧 hls.js 实例和内存），而不是手动 `pause()`。这避免了 HLS 切换的脏状态。
-- 新的 hero 在挂载时调 `play()`，触发自动播放（用户刚刚点击过缩略图，是用户手势，浏览器允许）。
-- `videos[0]` 作为初始 hero，`activeKey = videos[0].key`。首次播放需要用户点 hero 的播放按钮（页面加载时无用户手势，不能 autoplay）。
-- 导航不显示分区：`Nav` 现有逻辑不变，分区锚点 `#section-<slug>` 用于页内跳转，但不出现在 Nav 列表里。
+- `VideoGallery` 内部把 `sections` 拍平为带 section 标记的 video 列表用于 activeKey 定位
+- `SectionGroup` 接收 `title` + `desc` + `videos` 三个 props，渲染头部信息 + 缩略列表
+- 嵌套结构对 React 友好：直接 `sections.map((s) => <SectionGroup ... />)` 即可
 
 ### 5. 脚本（`video-workflow/slice.py`）
 
@@ -95,7 +110,7 @@ videos: [
 
 ```
 1) 切片并上传新视频
-2) 把已传到 R2 的视频挂进配置（不重新切片上传）
+2) 把已传到 R2 的视频挂进配置
 3) 整理现有视频的分区
 4) 退出
 ```
@@ -103,94 +118,102 @@ videos: [
 **路径 1：切片上传**（现有批量流程 + 分区）
 
 - 切片完成后，询问"是否上传到 R2"
-- **分区来源按文件夹自动推导**（不用逐条问答）：
+- **分区来源按文件夹自动推导**（同 T1 规则：子文件夹名 = 分区 title）
 
-  | 你给的路径 | 分区名来自 |
-  | --- | --- |
-  | 指向**文件** | 问一次：`这个视频属于哪个分区？`（可输新名字） |
-  | 指向**文件夹**，里面有子文件夹 | **每个子文件夹 = 一个分区**，分区名 = 子文件夹名（去掉开头的 `1.` `2、` 等序号） |
-  | 指向**文件夹**，视频直接放在里面 | 问一次：`这一批归到哪个分区？`（回车默认用文件夹名） |
+- **每个分区处理第一个视频前问一次 `desc`（可空）**：
+  ```
+  分区: MCN账号视频
+  简介（可空，回车跳过）>
+  ```
+  之后该分区的其他视频不再问 desc
 
-- 子文件夹名 → 分区名的转换规则：
+- 子文件夹名 → 分区 title 的转换规则（不变）：
   ```
   1.MCN账号视频          → MCN账号视频
   2.网剧（灵瞳鉴宝）      → 网剧（灵瞳鉴宝）
   3.政府事业单位承包视频   → 政府事业单位承包视频
   01-个人介绍            → 个人介绍
   ```
-  即：去掉开头的 `数字 + 分隔符(. 、 -, _ 空格)`，保留括号与中文原名
-- 推导出的分区列表会在开始切片前**打印出来让你确认**，可以按 `n` 中止
-- 写进配置时把 `section` 字段加进每条条目
+
+- 写进配置时把 section 块（title + desc + videos[]）追加到 `sections: [...]`
 
 **路径 2：导入 R2 视频**
+
 - 问 R2 key（一次可输入多个，逗号或换行分隔）
-- 对每个 key：
-  - 问 `title`（必填）
-  - 问分区（同路径 1 的流程）
-  - 问 `desc`、`poster`（可空）
-- 追加到 `videos` 数组；**不切片、不上传**、不调 R2
+- 对每个 key：问 `title`、问挂到哪个 section（已有/新建）
+- **新建 section 时问 `desc`**；挂到已有 section 不再问 desc
 - 末尾问是否直接写进 `src/resume.config.js`
 
 **路径 3：整理分区**
-- 打印当前所有视频 + 分区：
+
+- 打印当前所有 section：
   ```
-  1) [个人介绍] hls/index.m3u8       作品展示
-  2) [作品集]   videos/xxx/...       Demo 作品
+  1) [MCN账号视频]  (2 个视频)  代运营 MCN 账号短视频…
+  2) [网剧（灵瞳鉴宝）]  (1 个视频)  网剧项目相关作品
+  3) [未命名]  (0 个视频)
   ```
-- 让你选一条或几条改分区
-- 支持把某个分区整体重命名（影响所有属于该分区的视频）
+- 操作菜单：
+  ```
+  1) 重命名分区
+  2) 改分区简介
+  3) 移动视频到另一个分区
+  4) 删除分区
+  5) 新建分区
+  6) 返回
+  ```
+- 改完会写回配置（先备份 .bak）
 
 ### 6. 写配置的脚本逻辑
 
-- `make_snippet(entries)`：`entries` 元素是 `{section, key, title, desc, poster}`，每条都必须有 `section`
-- `write_config(snippet)`：正则匹配 `videos: [...]` 块替换；写入前**校验**每条都有 `section` 否则报错退出
-- `append_videos_config(entries)`（批量追加）：保持追加，**每条都必须有 `section`**
+- `make_entry(video)`：返回单条 video 字符串，无 `section` 字段
+- `make_section(title, desc, videos)`：返回 section 块（含 desc + 内嵌 videos）
+- `append_videos_config(section_or_video)`：
+  - 找 `sections: [...]` 块
+  - 如果 `section.title` 已在某条 section 里，append 到该 section 的 `videos`
+  - 否则 append 整个新 section 块
+- `path3` 重写整个 `sections: [...]` 块（备份后）
 
 ### 7. 实施时的一次性迁移
 
-- 现有的 `videos: [{...}]`（无 `section` 字段）会在**实施当天**被整段清空（数组替换成 `[]`）
-- R2 桶里旧的对象（`hls/index.m3u8`、`new/index.m3u8`、`gna.mp4` 等）**不删**，留作用户将来用路径 2 重新导入
-- `wrangler.toml` 的 `VIDEO_KEYS` 不动（白名单仍允许历史 key，新视频再按需扩展）
+- 现有 `videos: []` 会在实施当天**整段清空**，改为 `sections: []`
+- R2 桶里旧的对象不删
+- `wrangler.toml` 不动
 
 ---
 
-## 文件改动清单
+## 文件改动清单（相对 T1-T10 已实现版）
 
 | 文件 | 改动 |
 | --- | --- |
-| `src/App.jsx` | 改：视频区改用 `<VideoGallery>` |
-| `src/components/VideoCard.jsx` | 改：抽出 hook |
-| `src/components/useVideoPlayer.js` | 新增 |
-| `src/components/VideoHero.jsx` | 新增 |
-| `src/components/VideoThumb.jsx` | 新增 |
-| `src/components/VideoGallery.jsx` | 新增 |
-| `src/components/SectionGroup.jsx` | 新增 |
-| `src/index.css` | 微调：缩略卡和分区的少量样式 |
-| `video-workflow/slice.py` | 大改：三路径菜单 + 分区询问 + 写配置扩展 |
-| `src/resume.config.js` | 清空 `videos` 数组（一次性迁移） |
-| `docs/superpowers/specs/2026-10-10-video-sections-design.md` | 新增（本文档） |
+| `src/App.jsx` | 改：消费 `sections` 而非 `videos` |
+| `src/components/VideoGallery.jsx` | 改：从 `sections` 读取，section 头部加 desc |
+| `src/components/SectionGroup.jsx` | 改：加 `desc` 展示 |
+| `src/components/VideoCard.jsx` | 改：移除 section 必填（不再被 App 引用） |
+| `video-workflow/slice.py` | 大改：`make_entry` 简化；新增 `make_section`；`append_videos_config` 支持 section 块；path1 问 desc；path2 问 desc；path3 完整操作 |
+| `video-workflow/tests/test_config.py` | 改：`make_entry` 签名去 section；新增 `make_section` 单测 |
+| `video-workflow/tests/test_menu.py` | 改：path2 验证 section 嵌套；path3 验证 desc |
+| `src/resume.config.js` | `videos: []` → `sections: []` |
+| `docs/superpowers/specs/2026-10-10-video-sections-design.md` | 改：本文档 |
 
 ## 测试
 
+- `python -m pytest video-workflow/tests/`：34+ 个测试应全过
 - 本地 `npm run dev`：浏览器里验证
-  - 宽屏：左 hero + 右分区列表；点缩略图切换；只有一个播放；默认全不播
-  - 窄屏（DevTools 模拟手机）：上 hero + 下分区 chips + 缩略横排
-- 切换缩略图：旧 video 立即停、新 video 自动播、视觉 150ms 过渡
-- `python slice.py`：验证三路径菜单、分区询问、配置写入
-- 不加自动化测试（UI 简单手测够）
+  - 宽屏：左 hero + 右分区列表（含 desc）；点缩略图切换；只有一个播放；默认全不播
+  - 窄屏（DevTools 模拟手机）：上 hero + 下 chips + desc + 缩略横排
+- 脚本三路径验证
 
 ## 风险
 
 | 风险 | 缓解 |
 | --- | --- |
-| HLS 切换残留缓冲 | hero 用 `key={activeKey}` 重建，彻底释放旧 hls.js |
-| 缩略图点击后浏览器拦截 autoplay | 这次 click 是用户手势，浏览器允许；万一被拦，hero 状态显示"点击播放"提示 |
-| 大量分区把宽屏右栏撑得很长 | 右栏自带 `overflow-y-auto` 滚动；分区很多时考虑折叠（未来） |
+| 嵌套结构对老 config 不兼容 | 实施当天清空 `videos`，从 `sections: []` 起步 |
+| section 块大（videos 多）写文件 regex 复杂 | 拆三段处理：找 sections 块 / 解析现有 section / 重组 |
 
 ## 未来
 
-- 分区折叠/展开（多分区时）
-- 缩略图自动提取（用 ffmpeg 取首帧）
+- 分区折叠/展开
+- 缩略图自动提取
 - 分区图标/颜色
 - 视频拖拽排序
 - 全屏按钮

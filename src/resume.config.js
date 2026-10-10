@@ -55,6 +55,38 @@ const resume = {
     //   desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
     //   poster: '',
     // },
+    {
+      section: 'MCN账号视频',
+      key: 'videos/溜溜梅/index.m3u8',
+      title: '溜溜梅',
+      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
+      // 封面图，留空则用视频第一帧
+      poster: '',
+    },
+    {
+      section: 'MCN账号视频',
+      key: 'videos/红酒账号/index.m3u8',
+      title: '红酒账号',
+      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
+      // 封面图，留空则用视频第一帧
+      poster: '',
+    },
+    {
+      section: 'MCN账号视频',
+      key: 'videos/芒果布丁/index.m3u8',
+      title: '芒果布丁',
+      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
+      // 封面图，留空则用视频第一帧
+      poster: '',
+    },
+    {
+      section: '网剧（灵瞳鉴宝）',
+      key: 'videos/样片-0-457/index.m3u8',
+      title: '样片 0.457',
+      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
+      // 封面图，留空则用视频第一帧
+      poster: '',
+    },
   ],
 
   /* ---------------- 正文分区 ---------------- */
