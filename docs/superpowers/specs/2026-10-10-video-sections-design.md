@@ -9,6 +9,8 @@
 
 简历的视频区块当前是扁平的一列卡片（`videos: [...]`）。用户希望按"分区"组织（如个人介绍、作品集、影视后期），并实现"主画面 + 缩略栏"的画廊式交互。配套地，上传脚本也要能在切片/导入时给视频分到分区。
 
+**用户决策**：旧配置里现有的 `videos` 条目（不带 `section` 字段）**全部删除**，新设计**不向后兼容**。`section` 是必填字段，不再有"其他"分区兜底。R2 桶里的旧对象保留（不属于本次范围）。
+
 ## 目标
 
 1. 视频按 `section` 字段分组，分区作为页内二级标题（不进导航）
@@ -32,17 +34,15 @@
 
 ```js
 videos: [
-  { section: '个人介绍', key: 'hls/index.m3u8',        title: '...', desc: '...', poster: '' },
-  { section: '作品集',   key: 'new/index.m3u8',        title: '...', desc: '...', poster: '' },
-  { section: '作品集',   key: 'videos/xxx/index.m3u8', title: '...', desc: '...', poster: '' },
-  // 没有 section 的 → 落到"其他"分区，灰色样式
+  { section: '个人介绍', key: 'videos/intro/index.m3u8', title: '...', desc: '...', poster: '' },
+  { section: '作品集',   key: 'videos/xxx/index.m3u8',   title: '...', desc: '...', poster: '' },
 ]
 ```
 
-- `section` 可选；缺省归"其他"分区
+- `section` **必填**；前端解析时缺字段直接报错
 - 分区顺序 = 首次出现在 `videos` 数组的顺序
 - 同分区视频顺序 = 数组顺序
-- 向后兼容：现有 `videos: [{...}]` 不需改，未写 `section` 的自动入"其他"
+- **不向后兼容**：现有 `videos: [{...}]`（无 `section` 字段的）会在实施时**整段清空**；新视频必须由脚本写入并带 `section`
 
 ### 2. 布局
 
@@ -102,16 +102,16 @@ videos: [
 
 **路径 1：切片上传**（现有批量流程 + 分区询问）
 - 切片完成后，询问"是否上传到 R2"
-- 上传成功后（每个视频），询问"这个视频属于哪个分区？"
+- 上传成功后（每个视频），询问"这个视频属于哪个分区？"——**必须选一个或新建，不允许跳过**
   - 列出现有分区（按 `videos` 数组首次出现顺序）：
     ```
     这个视频属于哪个分区？
       1) 个人介绍
       2) 作品集
       n) 新建分区
-      s) 跳过（归"其他"）
     ```
-  - 输入 `1..N` 选已有；`n` 提示输入新名字；`s` 不归任何分区
+  - 输入 `1..N` 选已有；`n` 提示输入新名字（slugify 后写入）
+  - 不接受空答案；连续两次不答自动退出流程
 - 写进配置时把 `section` 字段加进条目
 
 **路径 2：导入 R2 视频**
@@ -127,16 +127,22 @@ videos: [
 - 打印当前所有视频 + 分区：
   ```
   1) [个人介绍] hls/index.m3u8       作品展示
-  2) [其他]     gna.mp4              自我介绍
+  2) [作品集]   videos/xxx/...       Demo 作品
   ```
-- 让你选一条或几条改分区；支持把"其他"批量归入新分区
-- 支持把某个分区整体重命名
+- 让你选一条或几条改分区
+- 支持把某个分区整体重命名（影响所有属于该分区的视频）
 
 ### 6. 写配置的脚本逻辑
 
-- `make_snippet(entries)` 扩展：`entries` 元素从 `{key, title}` 变成 `{section, key, title}`，输出带 `section` 字段
-- `write_config(snippet)` 扩展：正则匹配 `videos: [...]` 块替换；条目含 `section` 时写入
-- `append_videos_config(entries)`（批量追加）保持追加，条目含 `section`
+- `make_snippet(entries)`：`entries` 元素是 `{section, key, title, desc, poster}`，每条都必须有 `section`
+- `write_config(snippet)`：正则匹配 `videos: [...]` 块替换；写入前**校验**每条都有 `section` 否则报错退出
+- `append_videos_config(entries)`（批量追加）：保持追加，**每条都必须有 `section`**
+
+### 7. 实施时的一次性迁移
+
+- 现有的 `videos: [{...}]`（无 `section` 字段）会在**实施当天**被整段清空（数组替换成 `[]`）
+- R2 桶里旧的对象（`hls/index.m3u8`、`new/index.m3u8`、`gna.mp4` 等）**不删**，留作用户将来用路径 2 重新导入
+- `wrangler.toml` 的 `VIDEO_KEYS` 不动（白名单仍允许历史 key，新视频再按需扩展）
 
 ---
 
@@ -153,6 +159,7 @@ videos: [
 | `src/components/SectionGroup.jsx` | 新增 |
 | `src/index.css` | 微调：缩略卡和分区的少量样式 |
 | `video-workflow/slice.py` | 大改：三路径菜单 + 分区询问 + 写配置扩展 |
+| `src/resume.config.js` | 清空 `videos` 数组（一次性迁移） |
 | `docs/superpowers/specs/2026-10-10-video-sections-design.md` | 新增（本文档） |
 
 ## 测试
@@ -162,7 +169,6 @@ videos: [
   - 窄屏（DevTools 模拟手机）：上 hero + 下分区 chips + 缩略横排
 - 切换缩略图：旧 video 立即停、新 video 自动播、视觉 150ms 过渡
 - `python slice.py`：验证三路径菜单、分区询问、配置写入
-- 现有线上视频（`hls/index.m3u8` 等）无 `section`：落到"其他"，能正常播
 - 不加自动化测试（UI 简单手测够）
 
 ## 风险
@@ -171,7 +177,6 @@ videos: [
 | --- | --- |
 | HLS 切换残留缓冲 | hero 用 `key={activeKey}` 重建，彻底释放旧 hls.js |
 | 缩略图点击后浏览器拦截 autoplay | 这次 click 是用户手势，浏览器允许；万一被拦，hero 状态显示"点击播放"提示 |
-| 现有无 `section` 视频 | 落"其他"分区；用路径 3 后续整理 |
 | 大量分区把宽屏右栏撑得很长 | 右栏自带 `overflow-y-auto` 滚动；分区很多时考虑折叠（未来） |
 
 ## 未来
