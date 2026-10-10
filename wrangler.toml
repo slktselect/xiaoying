@@ -38,7 +38,7 @@ VIDEO_KEYS = "gna.mp4,hls/*"
 # 只有白名单来源的页面才能拿到播放地址 / 播放视频（防盗链核心）
 # 若以后要嵌到别的站点，把对应域名加进来；
 # 本地 npm run dev 调试时临时追加 localhost、127.0.0.1，否则会 403
-ALLOW_REFERERS = "xiaoying.slkt-evan.workers.dev"
+ALLOW_REFERERS = "xiaoying.68a02a26.nip.io"
 
 # 无 Referer 的直接访问是否放行（ALLOW_REFERERS 非空时生效）
 ALLOW_EMPTY_REFERER = "0"
