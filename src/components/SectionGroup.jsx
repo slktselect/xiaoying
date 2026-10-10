@@ -6,7 +6,8 @@ import VideoThumb from './VideoThumb';
  * layout=horizontal：窄屏用，横向滚动。
  */
 export default function SectionGroup({
-  section,
+  title,
+  desc = '',
   videos,
   activeKey,
   onSelect,
@@ -14,7 +15,10 @@ export default function SectionGroup({
 }) {
   return (
     <div>
-      <h3 className="px-1 text-sm font-semibold text-slate-700">{section}</h3>
+      <h3 className="px-1 text-sm font-semibold text-slate-700">{title}</h3>
+      {desc && (
+        <p className="mt-1 px-1 text-xs leading-relaxed text-slate-500">{desc}</p>
+      )}
       <div
         className={
           layout === 'vertical'

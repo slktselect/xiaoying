@@ -42,55 +42,29 @@ const resume = {
     { label: '期望薪资', value: '9‑14K', href: '' },
   ],
 
-  /* ---------------- 介绍视频 ---------------- */
-  // 每条必须有 section 字段（分区名）。
-  // 建议用 video-workflow/slice.py 走路径 1 或路径 2 来追加条目；手动加也行。
-  // R2 路径统一是 videos/<slug>/index.m3u8（白名单 videos/* 已在 wrangler.toml）。
-  videos: [
-    // 示例（运行 slice.py 后会自动追加在下面，旧的会保留）：
-    // {
-    //   section: 'MCN账号视频',
-    //   key: 'videos/xxx/index.m3u8',
-    //   title: '示例作品',
-    //   desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-    //   poster: '',
-    // },
-    {
-      section: 'MCN账号视频',
-      key: 'videos/溜溜梅/index.m3u8',
-      title: '溜溜梅',
-      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-      // 封面图，留空则用视频第一帧
-      poster: '',
-    },
-    {
-      section: 'MCN账号视频',
-      key: 'videos/红酒账号/index.m3u8',
-      title: '红酒账号',
-      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-      // 封面图，留空则用视频第一帧
-      poster: '',
-    },
-    {
-      section: 'MCN账号视频',
-      key: 'videos/芒果布丁/index.m3u8',
-      title: '芒果布丁',
-      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-      // 封面图，留空则用视频第一帧
-      poster: '',
-    },
-    {
-      section: '网剧（灵瞳鉴宝）',
-      key: 'videos/样片-0-457/index.m3u8',
-      title: '样片 0.457',
-      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
-      // 封面图，留空则用视频第一帧
-      poster: '',
-    },
-  ],
-
-  /* ---------------- 正文分区 ---------------- */
+  /* ---------------- 介绍视频（按分区嵌套） ---------------- */
+  // 每个 section：title 必填、desc 简介（可空）、videos 数组
+  // 用 video-workflow/slice.py 路径 1/2 追加；手动加也行
+  // 与正文分区的区别：这里有 videos 字段（数组）；正文分区用 items 字段
   sections: [
+    {
+      title: 'MCN账号视频',
+      desc: '',
+      videos: [
+        { key: 'videos/溜溜梅/index.m3u8', title: '溜溜梅', desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。', poster: '' },
+        { key: 'videos/红酒账号/index.m3u8', title: '红酒账号', desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。', poster: '' },
+        { key: 'videos/芒果布丁/index.m3u8', title: '芒果布丁', desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。', poster: '' },
+      ],
+    },
+    {
+      title: '网剧（灵瞳鉴宝）',
+      desc: '',
+      videos: [
+        { key: 'videos/样片-0-457/index.m3u8', title: '样片 0.457', desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。', poster: '' },
+      ],
+    },
+
+    /* ---------------- 正文分区 ---------------- */
     {
       id: 'skills',
       title: '专业技能',

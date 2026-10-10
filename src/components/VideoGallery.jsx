@@ -1,29 +1,28 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import VideoHero from './VideoHero';
 import SectionGroup from './SectionGroup';
 
-/** 把 videos 按 section 分组，分区顺序 = 首次出现顺序。 */
-function groupBySection(videos) {
-  const groups = [];
-  const map = new Map();
-  for (const v of videos) {
-    if (!v.section) {
-      // 缺 section 是配置错误，打日志并跳过
-      console.error('视频配置错误：缺少 section 字段', v);
+/** 拍平 sections 得到所有 video（保持分区顺序）。 */
+function flatten(sections) {
+  const out = [];
+  for (const s of sections || []) {
+    if (!s || !s.title) {
+      console.error('section 配置错误：缺少 title 字段', s);
       continue;
     }
-    if (!map.has(v.section)) {
-      const g = { section: v.section, videos: [] };
-      groups.push(g);
-      map.set(v.section, g);
+    for (const v of s.videos || []) {
+      if (!v || !v.key) {
+        console.error(`section "${s.title}" 下的视频缺少 key`, v);
+        continue;
+      }
+      out.push({ ...v, _section: s.title });
     }
-    map.get(v.section).videos.push(v);
   }
-  return groups;
+  return out;
 }
 
-export default function VideoGallery({ videos }) {
-  if (!videos || videos.length === 0) {
+export default function VideoGallery({ sections }) {
+  if (!sections || sections.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-400">
         暂无视频
@@ -31,9 +30,17 @@ export default function VideoGallery({ videos }) {
     );
   }
 
-  const groups = useMemo(() => groupBySection(videos), [videos]);
-  const [activeKey, setActiveKey] = useState(videos[0].key);
-  const active = videos.find((v) => v.key === activeKey) || videos[0];
+  const all = flatten(sections);
+  if (all.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-400">
+        暂无视频
+      </div>
+    );
+  }
+
+  const [activeKey, setActiveKey] = useState(all[0].key);
+  const active = all.find((v) => v.key === activeKey) || all[0];
 
   const select = (v) => {
     if (v.key === activeKey) return;
@@ -49,11 +56,12 @@ export default function VideoGallery({ videos }) {
           <VideoHero key={active.key} video={active} autoplay />
         </div>
         <div className="space-y-5 overflow-y-auto pr-1 lg:max-h-[80vh]">
-          {groups.map((g) => (
+          {sections.map((s) => (
             <SectionGroup
-              key={g.section}
-              section={g.section}
-              videos={g.videos}
+              key={s.title}
+              title={s.title}
+              desc={s.desc}
+              videos={s.videos || []}
               activeKey={activeKey}
               onSelect={select}
               layout="vertical"
@@ -62,34 +70,35 @@ export default function VideoGallery({ videos }) {
         </div>
       </div>
 
-      {/* 窄屏：上 hero，下 chips + 缩略横排 */}
+      {/* 窄屏：上 hero，下 chips + 当前分区的 desc + 缩略横排 */}
       <div className="space-y-4 lg:hidden">
         <VideoHero key={active.key} video={active} autoplay />
         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {groups.map((g) => {
-            const isActive = g.videos.some((v) => v.key === activeKey);
+          {sections.map((s) => {
+            const isActive = (s.videos || []).some((v) => v.key === activeKey);
             return (
               <button
-                key={g.section}
+                key={s.title}
                 type="button"
-                onClick={() => select(g.videos[0])}
+                onClick={() => select((s.videos || [])[0])}
                 className={`shrink-0 rounded-full px-3 py-1 text-xs ${
                   isActive
                     ? 'bg-blue-50 font-medium text-blue-600'
                     : 'bg-slate-100 text-slate-600'
                 }`}
               >
-                {g.section}
+                {s.title}
               </button>
             );
           })}
         </div>
-        {groups.map((g) =>
-          g.videos.some((v) => v.key === activeKey) ? (
+        {sections.map((s) =>
+          (s.videos || []).some((v) => v.key === activeKey) ? (
             <SectionGroup
-              key={g.section}
-              section={g.section}
-              videos={g.videos}
+              key={s.title}
+              title={s.title}
+              desc={s.desc}
+              videos={s.videos || []}
               activeKey={activeKey}
               onSelect={select}
               layout="horizontal"

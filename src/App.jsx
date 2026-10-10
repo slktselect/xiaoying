@@ -7,16 +7,27 @@ import Section from './components/Section.jsx';
 import ShareButton from './components/ShareButton.jsx';
 
 export default function App() {
-  const { profile = {}, contacts = [], videos = [], sections = [], share, footer } = resume;
+  const { profile = {}, contacts = [], sections = [], share, footer } = resume;
+  // sections 字段有两类：
+  //   1) 旧版：[{id, title, items: [...]}, ...] —— 正文分区（id 必填）
+  //   2) 新版（视频嵌套）：[{title, desc, videos: [...]}, ...] —— 视频分区（id 缺省，videos 必填）
+  // 用 'videos' 字段是否存在来区分
+  const videoSections = useMemo(
+    () => (sections || []).filter((s) => Array.isArray(s.videos)),
+    [sections],
+  );
+  const pageSections = useMemo(
+    () => (sections || []).filter((s) => !Array.isArray(s.videos) && !s.hidden),
+    [sections],
+  );
 
-  const visibleVideos = useMemo(() => videos.filter((v) => !v.hidden), [videos]);
-  const visibleSections = useMemo(() => sections.filter((s) => !s.hidden), [sections]);
+  const hasVideos = videoSections.some((s) => (s.videos || []).length > 0);
   const navItems = useMemo(
     () => [
-      ...(visibleVideos.length ? [{ id: 'videos', title: '视频介绍' }] : []),
-      ...visibleSections.map((s) => ({ id: s.id, title: s.title })),
+      ...(hasVideos ? [{ id: 'videos', title: '视频介绍' }] : []),
+      ...pageSections.map((s) => ({ id: s.id, title: s.title })),
     ],
-    [visibleVideos, visibleSections],
+    [hasVideos, pageSections],
   );
 
   useEffect(() => {
@@ -35,14 +46,14 @@ export default function App() {
       <Nav items={navItems} />
 
       <main className="mx-auto w-full max-w-5xl px-4 pb-10 sm:pb-16">
-        {visibleVideos.length > 0 && (
+        {hasVideos && (
           <section id="videos" className="scroll-mt-20 pt-8">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">视频介绍</h2>
-            <VideoGallery videos={visibleVideos} />
+            <VideoGallery sections={videoSections} />
           </section>
         )}
 
-        {visibleSections.map((s) => (
+        {pageSections.map((s) => (
           <Section key={s.id} section={s} />
         ))}
       </main>
