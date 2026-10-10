@@ -69,16 +69,25 @@ sections: [
 
 ### 2. 布局
 
+2026-10-10 二次改版（起因：4 个视频实测全是竖版 9:16，16:9 的 hero 留大片黑边、
+16:9 的缩略卡把封面裁掉 68% 只剩中间一条）：
+
 **宽屏（≥ lg / 1024px）**
-- 左 2/3：hero（16:9）
-- 右 1/3：分区列表（垂直滚动）
-  - 每个分区：`h3` 标题 + `desc`（一段灰色小字）+ 缩略卡垂直堆叠
-  - 当前 hero 所属的缩略卡有视觉高亮（边框/标记）
+- 「视频介绍」标题下一排**分区标签**（pill，可切换；只有一个分区时隐藏）
+- 左 2/5：hero，视频盒按竖版 9:16 高度收窄（`lg:h-[min(68vh,600px)]`）居中，
+  盒子 `lg:w-fit` 收缩到视频宽 → **不产生黑边**
+- 右 3/5：当前分区的 `desc` + 缩略卡 **3 列网格**（点标签切换，不再全量堆叠滚动）
 
 **窄屏（< lg）**
-- 上：hero（满宽，16:9）
-- 下：分区 chips 横排（可横滑）
-- 当前分区的 `desc` 段落 + 缩略卡横排
+- 上：hero（满宽 9:16）
+- 下：同一排分区标签 + 当前分区的 `desc` + 缩略卡 2 列（sm 起 3 列）
+
+**缩略卡**：`aspect-[9/16]` + `object-contain`（封面完整显示；
+将来若有横版视频会上下留黑，不会裁切）
+
+**切区语义**：点标签 = 选该分区第一个视频（换大画面）；点缩略图 = 只在同分区内换。
+
+（改版前：宽屏左 2/3 hero（16:9）+ 右 1/3 全部分区垂直堆叠滚动；窄屏 chips + 横排。）
 
 ### 3. 播放模型（不变）
 
@@ -91,19 +100,18 @@ sections: [
 
 | 文件 | 状态 | 职责 |
 | --- | --- | --- |
-| `src/components/VideoGallery.jsx` | 改 | 从 `sections` 读取（替代 `videos`）；管理 `activeKey` |
-| `src/components/SectionGroup.jsx` | 改 | 渲染分区标题 + desc + 缩略卡 |
-| `src/components/VideoHero.jsx` | 改 | 大画面；poster 走签名 URL |
-| `src/components/VideoThumb.jsx` | 改 | 缩略卡；poster 走签名 URL |
+| `src/components/VideoGallery.jsx` | 改 | 从 `sections` 读取；分区标签 + 当前分区缩略网格 |
+| `src/components/VideoHero.jsx` | 改 | 大画面；poster 走签名 URL；竖版 9:16 盒子 |
+| `src/components/VideoThumb.jsx` | 改 | 缩略卡；poster 走签名 URL；9:16 完整显示 |
 | `src/components/useVideoPlayer.js` | 不变 | 共用 hook |
 | `src/components/useSignedUrl.js` | 新增 | 把 R2 key 换成签名 URL（封面用） |
 | `src/components/VideoCard.jsx` | 改 | 不再被 App 引用；保留作 fallback / embed 模式 |
+| `src/components/SectionGroup.jsx` | 删除 | 二次改版后无人引用（列表改为标签 + 网格） |
 | `src/App.jsx` | 改 | 改用 `<VideoGallery sections={visibleSections} />` |
 
 **关键实现点**：
 - `VideoGallery` 内部把 `sections` 拍平为带 section 标记的 video 列表用于 activeKey 定位
-- `SectionGroup` 接收 `title` + `desc` + `videos` 三个 props，渲染头部信息 + 缩略列表
-- 嵌套结构对 React 友好：直接 `sections.map((s) => <SectionGroup ... />)` 即可
+- 嵌套结构对 React 友好：直接 `sections.map((s) => ...)` 即可
 
 ### 5. 脚本（`video-workflow/slice.py`）
 
