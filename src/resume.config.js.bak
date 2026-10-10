@@ -45,12 +45,16 @@ const resume = {
   /* ---------------- 介绍视频 ---------------- */
   // key 必须是 worker 侧 VIDEO_KEYS 白名单允许的对象名
   // 目前 R2 里存的是 HLS 切片（hls/index.m3u8），改成 mp4 也能播
-  /* ---------------- 介绍视频 ---------------- */
-  // key 必须是 worker 侧 VIDEO_KEYS 白名单允许的对象名
-  // 目前 R2 里存的是 HLS 切片（hls/index.m3u8），改成 mp4 也能播
   videos: [
     {
       key: 'hls/index.m3u8',
+      title: '作品展示',
+      desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
+      // 封面图，留空则用视频第一帧
+      poster: '',
+    },
+    {
+      key: 'new/index.m3u8',
       title: 'DefaultAttract',
       desc: '存放于 Cloudflare R2，播放地址由 Worker 临时签发。',
       // 封面图，留空则用视频第一帧
