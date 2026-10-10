@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import VideoHero from './VideoHero';
-import SectionGroup from './SectionGroup';
+import VideoThumb from './VideoThumb';
 
 /** 拍平 sections 得到所有 video（保持分区顺序）。 */
 function flatten(sections) {
@@ -21,90 +21,101 @@ function flatten(sections) {
   return out;
 }
 
+/**
+ * 视频介绍区：分区标签 + 大画面 + 当前分区的缩略列表。
+ *
+ * 布局（4 个视频都是竖版 9:16）：
+ *   宽屏：左播放器按竖版比例收窄居中，右侧当前分区缩略 3 列；
+ *   窄屏：上播放器（整宽 9:16），下分区标签 + 缩略 2 列。
+ */
 export default function VideoGallery({ sections }) {
-  if (!sections || sections.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-400">
-        暂无视频
-      </div>
-    );
-  }
+  const usable = useMemo(
+    () => (sections || []).filter((s) => (s.videos || []).length > 0),
+    [sections],
+  );
+  const all = useMemo(() => flatten(sections), [sections]);
+  const [activeKey, setActiveKey] = useState(all[0]?.key);
 
-  const all = flatten(sections);
-  if (all.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-400">
-        暂无视频
-      </div>
-    );
-  }
-
-  const [activeKey, setActiveKey] = useState(all[0].key);
   const active = all.find((v) => v.key === activeKey) || all[0];
+  if (!active) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-400">
+        暂无视频
+      </div>
+    );
+  }
+
+  // 当前视频落在哪个分区（点缩略图不换区，点标签换区）
+  const activeSection =
+    usable.find((s) => (s.videos || []).some((v) => v.key === active.key)) || usable[0];
+  const activeVideos = activeSection.videos || [];
 
   const select = (v) => {
-    if (v.key === activeKey) return;
+    if (v.key === active.key) return;
     setActiveKey(v.key);
   };
+  const selectTab = (s) => {
+    const first = (s.videos || [])[0];
+    if (first) select(first);
+  };
+
+  // 分区标签（只有一个分区时不占地方）
+  const tabs =
+    usable.length > 1 ? (
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {usable.map((s) => {
+          const on = s === activeSection;
+          return (
+            <button
+              key={s.title}
+              type="button"
+              onClick={() => selectTab(s)}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm transition ${
+                on
+                  ? 'bg-blue-50 font-medium text-blue-600'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              aria-pressed={on}
+            >
+              {s.title}
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
+
+  const desc = activeSection.desc ? (
+    <p className="px-1 text-xs leading-relaxed text-slate-500">{activeSection.desc}</p>
+  ) : null;
+
+  // 竖版 9:16 缩略卡：完整显示封面，不再裁切
+  const thumbs = (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {activeVideos.map((v) => (
+        <VideoThumb key={v.key} video={v} active={v.key === active.key} onSelect={select} />
+      ))}
+    </div>
+  );
 
   return (
     <>
-      {/* 宽屏（lg+）：左 2/3 hero + 右 1/3 分区列表 */}
-      <div className="hidden lg:grid lg:grid-cols-3 lg:gap-6">
-        <div className="lg:col-span-2">
-          {/* key 触发 hero 重建，释放旧 hls.js 实例 */}
-          <VideoHero key={active.key} video={active} autoplay />
-        </div>
-        <div className="space-y-5 overflow-y-auto pr-1 lg:max-h-[80vh]">
-          {sections.map((s) => (
-            <SectionGroup
-              key={s.title}
-              title={s.title}
-              desc={s.desc}
-              videos={s.videos || []}
-              activeKey={activeKey}
-              onSelect={select}
-              layout="vertical"
-            />
-          ))}
+      {tabs}
+
+      {/* 宽屏：左 2/5 播放器（竖版收窄居中）+ 右 3/5 当前分区列表 */}
+      <div className="hidden items-start gap-6 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        {/* key 触发 hero 重建，释放旧 hls.js 实例 */}
+        <VideoHero key={active.key} video={active} autoplay />
+        <div>
+          {desc}
+          <div className={desc ? 'mt-3' : ''}>{thumbs}</div>
         </div>
       </div>
 
-      {/* 窄屏：上 hero，下 chips + 当前分区的 desc + 缩略横排 */}
-      <div className="space-y-4 lg:hidden">
+      {/* 窄屏：上播放器，下当前分区缩略 */}
+      <div className="space-y-3 lg:hidden">
         <VideoHero key={active.key} video={active} autoplay />
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {sections.map((s) => {
-            const isActive = (s.videos || []).some((v) => v.key === activeKey);
-            return (
-              <button
-                key={s.title}
-                type="button"
-                onClick={() => select((s.videos || [])[0])}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs ${
-                  isActive
-                    ? 'bg-blue-50 font-medium text-blue-600'
-                    : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {s.title}
-              </button>
-            );
-          })}
-        </div>
-        {sections.map((s) =>
-          (s.videos || []).some((v) => v.key === activeKey) ? (
-            <SectionGroup
-              key={s.title}
-              title={s.title}
-              desc={s.desc}
-              videos={s.videos || []}
-              activeKey={activeKey}
-              onSelect={select}
-              layout="horizontal"
-            />
-          ) : null
-        )}
+        {desc}
+        {thumbs}
       </div>
     </>
   );

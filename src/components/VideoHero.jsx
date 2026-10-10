@@ -42,38 +42,40 @@ export default function VideoHero({ video, autoplay = false }) {
           <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-400">{video.section}</p>
         )}
         {video.desc && <p className="mt-1 text-sm text-slate-500">{video.desc}</p>}
-      </div>
-      <div className="relative bg-black">
-        <video
-          ref={mediaRef}
-          controls
-          playsInline
-          webkit-playsinline="true"
-          x5-playsinline="true"
-          x5-video-player-type="h5-page"
-          x5-video-player-fullscreen="true"
-          preload="metadata"
-          poster={posterUrl || undefined}
-          className="aspect-video w-full"
-          onError={() => reload()}
-        />
-        {status.loading && (
-          <div className="absolute inset-0 grid place-items-center bg-black/50 text-sm text-white">
-            正在获取播放地址…
-          </div>
-        )}
-        {!status.loading && status.error && (
-          <div className="absolute inset-0 grid place-items-center gap-3 bg-black/60 px-6 text-center">
-            <p className="text-sm text-white">{status.error}</p>
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700"
-            >
-              重新获取
-            </button>
-          </div>
-        )}
+        {/* 竖版视频：宽屏按高度收窄居中（盒子收缩到视频宽，不产生黑边）；
+            窄屏整宽 9:16。视频都是 9:16，object 默认 contain 不会拉伸 */}
+        <div className="relative mx-auto mt-3 w-full overflow-hidden rounded-lg bg-black lg:w-fit">
+          <video
+            ref={mediaRef}
+            controls
+            playsInline
+            webkit-playsinline="true"
+            x5-playsinline="true"
+            x5-video-player-type="h5-page"
+            x5-video-player-fullscreen="true"
+            preload="metadata"
+            poster={posterUrl || undefined}
+            className="aspect-[9/16] w-full lg:h-[min(68vh,600px)] lg:w-auto lg:max-w-full"
+            onError={() => reload()}
+          />
+          {status.loading && (
+            <div className="absolute inset-0 grid place-items-center bg-black/50 text-sm text-white">
+              正在获取播放地址…
+            </div>
+          )}
+          {!status.loading && status.error && (
+            <div className="absolute inset-0 grid place-items-center gap-3 bg-black/60 px-6 text-center">
+              <p className="text-sm text-white">{status.error}</p>
+              <button
+                type="button"
+                onClick={reload}
+                className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700"
+              >
+                重新获取
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

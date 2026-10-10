@@ -20,16 +20,16 @@ export default function VideoThumb({ video, active = false, onSelect }) {
       }`}
       aria-pressed={active}
     >
-      <div className="aspect-video w-full overflow-hidden rounded-lg bg-slate-100">
+      <div className="aspect-[9/16] w-full overflow-hidden rounded-lg bg-black">
         {posterUrl ? (
           <img
             src={posterUrl}
             alt={video.title}
             loading="lazy"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
+          <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">
             {placeholder}
           </div>
         )}
