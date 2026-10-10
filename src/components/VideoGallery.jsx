@@ -15,7 +15,7 @@ function flatten(sections) {
         console.error(`section "${s.title}" 下的视频缺少 key`, v);
         continue;
       }
-      out.push({ ...v, _section: s.title });
+      out.push({ ...v, section: s.title });
     }
   }
   return out;

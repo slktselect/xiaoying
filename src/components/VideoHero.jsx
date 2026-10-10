@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
 import useVideoPlayer from './useVideoPlayer';
+import useSignedUrl from './useSignedUrl';
 
 /**
  * 大画面视频组件。autoplay 为 true 时挂载后自动播放。
  * 父组件用 key={video.key} 触发重建，确保旧节点资源被彻底释放。
  */
 export default function VideoHero({ video, autoplay = false }) {
-  const { mediaRef, status, reload } = useVideoPlayer(video.key);
+  const { mediaRef, status, reload } = useVideoPlayer(video?.key);
+  // 封面是 R2 key，要换成签名 URL 才显示得出来
+  const { url: posterUrl } = useSignedUrl(video?.poster);
   const attemptedRef = useRef(false);
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export default function VideoHero({ video, autoplay = false }) {
           x5-video-player-type="h5-page"
           x5-video-player-fullscreen="true"
           preload="metadata"
-          poster={video.poster || undefined}
+          poster={posterUrl || undefined}
           className="aspect-video w-full"
           onError={() => reload()}
         />

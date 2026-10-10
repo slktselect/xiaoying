@@ -93,9 +93,10 @@ sections: [
 | --- | --- | --- |
 | `src/components/VideoGallery.jsx` | 改 | 从 `sections` 读取（替代 `videos`）；管理 `activeKey` |
 | `src/components/SectionGroup.jsx` | 改 | 渲染分区标题 + desc + 缩略卡 |
-| `src/components/VideoHero.jsx` | 不变 | 大画面；用 `useVideoPlayer` hook |
-| `src/components/VideoThumb.jsx` | 不变 | 缩略卡 |
+| `src/components/VideoHero.jsx` | 改 | 大画面；poster 走签名 URL |
+| `src/components/VideoThumb.jsx` | 改 | 缩略卡；poster 走签名 URL |
 | `src/components/useVideoPlayer.js` | 不变 | 共用 hook |
+| `src/components/useSignedUrl.js` | 新增 | 把 R2 key 换成签名 URL（封面用） |
 | `src/components/VideoCard.jsx` | 改 | 不再被 App 引用；保留作 fallback / embed 模式 |
 | `src/App.jsx` | 改 | 改用 `<VideoGallery sections={visibleSections} />` |
 
@@ -179,6 +180,22 @@ sections: [
 - R2 桶里旧的对象不删
 - `wrangler.toml` 不动
 
+### 8. 缩略图封面（2026-10-10 追加）
+
+缩略卡原来显示「暂无封面」。改成**切片时顺手抽第一帧**当封面：
+
+- 抽帧：`ffmpeg -ss 1 -i src -frames:v 1 -q:v 3 poster.jpg`（1 秒处，避开片头黑场；
+  视频不足 1 秒时自动退回第 0 秒）
+- 存 R2：`videos/<slug>/poster.jpg`（与 `index.m3u8` 同目录，`videos/*` 白名单已覆盖）
+- 配置：`poster: 'videos/<slug>/poster.jpg'`
+
+前端 `poster` 存的是 **R2 key**，不能直接塞 `<img src>`（会 403）。`useSignedUrl`
+把它换成 `/api/video?key=...` 签发的短期地址；传进来的本来就是 URL 时原样透传
+（向后兼容手填外链）。
+
+路径 4「给已有视频补封面」：不需要本地原始 mp4，直接下 R2 里的 `seg_000.ts`
+→ 抽帧 → 传 `poster.jpg` → 写回配置。
+
 ---
 
 ## 文件改动清单（相对 T1-T10 已实现版）
@@ -213,7 +230,7 @@ sections: [
 ## 未来
 
 - 分区折叠/展开
-- 缩略图自动提取
 - 分区图标/颜色
 - 视频拖拽排序
 - 全屏按钮
+- 封面手动替换（现在只能靠重新抽帧）

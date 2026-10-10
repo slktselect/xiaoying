@@ -30,7 +30,7 @@ export default function useVideoPlayer(key) {
 
   useEffect(() => {
     const media = mediaRef.current;
-    if (!media) return undefined;
+    if (!media || !key) return undefined;
 
     aliveRef.current = true;
     failsRef.current = 0;
