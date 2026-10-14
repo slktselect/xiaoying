@@ -193,6 +193,13 @@ const resume = {
           desc: '',
           // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
           poster: 'videos/ls-0672/poster.jpg',
+        },
+        {
+          key: 'videos/ls-0531/index.m3u8',
+          title: 'LS-0531',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/ls-0531/poster.jpg',
         }
       ],
     },
@@ -220,6 +227,19 @@ const resume = {
           desc: '',
           // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
           poster: 'videos/集团宣传-中文-1-19/poster.jpg',
+        }
+      ],
+    },
+    {
+      title: '抠像合成（刚毕业时做的，可以不看）',
+      desc: '早期实习时负责电视剧的合成包装特效，参与电视剧：风声  香蜜沉沉烬如霜后期制作（电视剧风声片尾可在合成组查询到我的名字）。\n当时严格要求成片保密，所以没有成片留存。当时自己做了个小演示视频用于求职。',
+      videos: [
+        {
+          key: 'videos/demo醉玲珑-上古情歌/index.m3u8',
+          title: 'demo醉玲珑 上古情歌',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/demo醉玲珑-上古情歌/poster.jpg',
         }
       ],
     },

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useVideoPlayer from './useVideoPlayer';
 import useSignedUrl from './useSignedUrl';
 
@@ -11,10 +11,30 @@ export default function VideoHero({ video, autoplay = false }) {
   // 封面是 R2 key，要换成签名 URL 才显示得出来
   const { url: posterUrl } = useSignedUrl(video?.poster);
   const attemptedRef = useRef(false);
+  // 横版还是竖版：元数据到了才知道，先按竖版渲染（已有视频都是竖版）
+  const [wide, setWide] = useState(false);
 
   useEffect(() => {
     attemptedRef.current = false;
+    setWide(false); // 换视频时回到默认，等新的探测结果
   }, [video?.key]);
+
+  // 横竖版探测：封面图和视频本身同比例，且不依赖播放（autoplay 被拦时
+  // videoWidth 一直是 0，拿不到）。没有封面时才退回等 video 的元数据。
+  useEffect(() => {
+    if (!posterUrl) return undefined;
+    let alive = true;
+    const im = new Image();
+    im.onload = () => {
+      if (alive && im.naturalWidth && im.naturalHeight) {
+        setWide(im.naturalWidth >= im.naturalHeight);
+      }
+    };
+    im.src = posterUrl;
+    return () => {
+      alive = false;
+    };
+  }, [posterUrl, video?.key]);
 
   useEffect(() => {
     if (!autoplay || attemptedRef.current) return;
@@ -34,6 +54,12 @@ export default function VideoHero({ video, autoplay = false }) {
 
   if (!video) return null;
 
+  // 竖版：宽屏按高度收窄、盒子收缩到视频宽（不产生黑边）；窄屏整宽 9:16。
+  // 横版：直接按 16:9 占满列宽，box 本身就是视频比例，无黑边。
+  const videoBox = wide
+    ? 'aspect-video w-full'
+    : 'aspect-[9/16] w-full lg:h-[min(68vh,600px)] lg:w-auto lg:max-w-full';
+
   return (
     <div className="print-plain overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="p-4 pb-3 sm:p-5">
@@ -42,9 +68,12 @@ export default function VideoHero({ video, autoplay = false }) {
           <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-400">{video.section}</p>
         )}
         {video.desc && <p className="mt-1 text-sm text-slate-500">{video.desc}</p>}
-        {/* 竖版视频：宽屏按高度收窄居中（盒子收缩到视频宽，不产生黑边）；
-            窄屏整宽 9:16。视频都是 9:16，object 默认 contain 不会拉伸 */}
-        <div className="relative mx-auto mt-3 w-full overflow-hidden rounded-lg bg-black lg:w-fit">
+        {/* lg:w-fit：竖版时盒子收缩到视频宽，两侧不会露出容器黑底 */}
+        <div
+          className={`relative mx-auto mt-3 w-full overflow-hidden rounded-lg bg-black ${
+            wide ? 'lg:w-full' : 'lg:w-fit'
+          }`}
+        >
           <video
             ref={mediaRef}
             controls
@@ -55,7 +84,13 @@ export default function VideoHero({ video, autoplay = false }) {
             x5-video-player-fullscreen="true"
             preload="metadata"
             poster={posterUrl || undefined}
-            className="aspect-[9/16] w-full lg:h-[min(68vh,600px)] lg:w-auto lg:max-w-full"
+            className={videoBox}
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              if (v.videoWidth && v.videoHeight) {
+                setWide(v.videoWidth >= v.videoHeight);
+              }
+            }}
             onError={() => reload()}
           />
           {status.loading && (
