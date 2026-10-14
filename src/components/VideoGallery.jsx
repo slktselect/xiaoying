@@ -111,11 +111,16 @@ export default function VideoGallery({ sections }) {
     <>
       {tabs}
 
-      {/* 宽屏：左播放器 + 右当前分区列表。
-          横版 3:2（播放器约 600px 宽，16:9 能到 337px 高）；
-          竖版 2:3（播放器按高度收窄，列表更宽好放 9:16 缩略图） */}
+      {/* 播放器 + 当前分区列表。
+          窄屏：hero 满宽在上、列表在下（块级自然堆叠）；
+          宽屏：两栏栅格。横版 3:2（播放器约 580px 宽，16:9 能到 326px 高）；
+          竖版 2:3（播放器按高度收窄，列表更宽好放 9:16 缩略图）。
+
+          ⚠️ hero 只能有一个实例：以前宽屏块和窄屏块各放一个，手机上那个在
+          display:none 容器里的也会执行 autoplay 效果去 play()，于是同一个视频
+          播两遍（双份声音），而暂停键只能停住看得见那个。 */}
       <div
-        className={`hidden items-start gap-6 lg:grid ${
+        className={`lg:grid lg:items-start lg:gap-6 ${
           wide
             ? 'lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]'
             : 'lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'
@@ -123,17 +128,10 @@ export default function VideoGallery({ sections }) {
       >
         {/* key 触发 hero 重建，释放旧 hls.js 实例 */}
         <VideoHero key={active.key} video={active} autoplay wide={wide} />
-        <div>
+        <div className="mt-4 space-y-3 lg:mt-0">
           {desc}
-          <div className={desc ? 'mt-3' : ''}>{thumbs}</div>
+          {thumbs}
         </div>
-      </div>
-
-      {/* 窄屏：上播放器，下当前分区缩略 */}
-      <div className="space-y-3 lg:hidden">
-        <VideoHero key={active.key} video={active} autoplay />
-        {desc}
-        {thumbs}
       </div>
     </>
   );

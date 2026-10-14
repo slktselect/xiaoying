@@ -180,6 +180,14 @@ export default function useVideoPlayer(key) {
       aliveRef.current = false;
       clearTimer();
       media.removeEventListener('playing', onPlaying);
+      // 主动停下：安卓上 display:none 容器里的 video 也会继续播并出声。
+      // 只在切视频/卸载时走到这里（续期 reload() 不重跑 effect），
+      // 所以不会打断正常的播放中续期。
+      try {
+        media.pause();
+      } catch {
+        /* 元素可能已经没了，忽略 */
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
