@@ -71,6 +71,20 @@ const resume = {
           desc: '',
           // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
           poster: 'videos/芒果布丁/poster.jpg',
+        },
+        {
+          key: 'videos/4-16酒吧/index.m3u8',
+          title: '4.16酒吧',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/4-16酒吧/poster.jpg',
+        },
+        {
+          key: 'videos/美妆/index.m3u8',
+          title: '美妆',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/美妆/poster.jpg',
         }
       ],
     },
@@ -84,6 +98,128 @@ const resume = {
           desc: '',
           // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
           poster: 'videos/样片-0-457/poster.jpg',
+        },
+        {
+          key: 'videos/8-0-1/index.m3u8',
+          title: '8.0.1',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/8-0-1/poster.jpg',
+        }
+      ],
+    },
+    {
+      title: '政府事业单位承包视频',
+      desc: '此文件夹两条视频为代运营期间制作，电视台文旅视频为自己承接的活。编 拍 剪由我全程负责。',
+      videos: [
+        {
+          key: 'videos/华安检测/index.m3u8',
+          title: '华安检测',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/华安检测/poster.jpg',
+        },
+        {
+          key: 'videos/济南历下市场监督管理局/index.m3u8',
+          title: '济南历下市场监督管理局',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/济南历下市场监督管理局/poster.jpg',
+        },
+        {
+          key: 'videos/电视台-文旅系列1-横屏超清/index.m3u8',
+          title: '电视台 文旅系列1 横屏超清',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/电视台-文旅系列1-横屏超清/poster.jpg',
+        },
+        {
+          key: 'videos/齐河文旅1-抖音竖屏横版/index.m3u8',
+          title: '齐河文旅1 抖音竖屏横版',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/齐河文旅1-抖音竖屏横版/poster.jpg',
+        }
+      ],
+    },
+    {
+      title: '信息流',
+      desc: '此文件夹视频全部为业余时间接的信息流剪辑，素材由甲方提供，我只负责剪辑。',
+      videos: [
+        {
+          key: 'videos/0606-康恩贝90蛋白粉-宣传5-混剪-晟果-szy/index.m3u8',
+          title: '0606-康恩贝90蛋白粉-宣传5-混剪-晟果-SZY',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/0606-康恩贝90蛋白粉-宣传5-混剪-晟果-szy/poster.jpg',
+        },
+        {
+          key: 'videos/5-14-光感水-日常向-混剪-功效1-2-szy/index.m3u8',
+          title: '5.14-光感水-日常向-混剪-功效1.2-szy',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/5-14-光感水-日常向-混剪-功效1-2-szy/poster.jpg',
+        },
+        {
+          key: 'videos/5-15-谷雨面霜-日常向-混剪-功效7-szy/index.m3u8',
+          title: '5.15-谷雨面霜-日常向-混剪-功效7-szy',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/5-15-谷雨面霜-日常向-混剪-功效7-szy/poster.jpg',
+        },
+        {
+          key: 'videos/5-15-谷雨面霜-日常向-混剪-口播4-szy-改1/index.m3u8',
+          title: '5.15-谷雨面霜-日常向-混剪-口播4-szy（改1）',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/5-15-谷雨面霜-日常向-混剪-口播4-szy-改1/poster.jpg',
+        },
+        {
+          key: 'videos/5-21-日常_晶冻_基础款_达人_亚比_szy/index.m3u8',
+          title: '5.21-日常_晶冻_基础款_达人_亚比_SZY',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/5-21-日常_晶冻_基础款_达人_亚比_szy/poster.jpg',
+        }
+      ],
+    },
+    {
+      title: '账号：你好，李涵',
+      desc: '视频账号名为：你好李涵  平台：bilibili  账号运营者为我的朋友，有时会有偿帮他剪片子。\n脚本由对方提供，剪辑风格和最终效果由他确定。我负责拍摄 剪辑。\n账号主页部分视频有我客串镜头。',
+      videos: [
+        {
+          key: 'videos/ls-0672/index.m3u8',
+          title: 'LS-0672',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/ls-0672/poster.jpg',
+        }
+      ],
+    },
+    {
+      title: '现就职公司品宣视频',
+      desc: '此文件夹视频为现就职公司剪辑视频，由我全程负责剪辑和后期制作。\n素材来自公司会议固定存档、网络素材、AI生成，也有部分是我现场实拍。\n视频主要用于公司品牌宣传，会在公司会议  接待外宾时播放，也会在公众号 视频号上更新。\n目前最新版与此有出入，此为早期版本。',
+      videos: [
+        {
+          key: 'videos/第七届卢浮宫总视频11-11/index.m3u8',
+          title: '第七届卢浮宫总视频11.11',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/第七届卢浮宫总视频11-11/poster.jpg',
+        },
+        {
+          key: 'videos/集团宣传-英文版11-3/index.m3u8',
+          title: '集团宣传 英文版11.3',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/集团宣传-英文版11-3/poster.jpg',
+        },
+        {
+          key: 'videos/集团宣传-中文-1-19/index.m3u8',
+          title: '集团宣传-中文 1.19',
+          desc: '',
+          // 封面图：R2 对象 key（切片时抽的第一帧），留空则显占位
+          poster: 'videos/集团宣传-中文-1-19/poster.jpg',
         }
       ],
     },
