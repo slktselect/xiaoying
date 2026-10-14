@@ -112,6 +112,31 @@ sections: [
 结果 **7/7**（3 个横版分区 539×303=1.779，4 个竖版 329×585=0.562）；
 1280/768/390 三端横向溢出均为 0。
 
+#### hero 只能有一个实例（2026-10-14 安卓双播放修复）
+
+**事故**：安卓上点缩略图后同一个视频播两遍（双份声音），暂停键只能停住看得见那个。
+
+**根因**：`VideoGallery` 原来把 hero 渲染了两遍——宽屏块（`hidden lg:grid`）
+和窄屏块（`lg:hidden`）各一个，两个都带 `autoplay`。手机上窄屏那个可见、
+宽屏那个在 `display:none` 容器里，但 **`display:none` 的 video 照样会执行
+autoplay 效果里的 `play()` 并出声**。点缩略图 → 两个 hero 一起 remount → 一起播。
+
+**证据**（Playwright 模拟安卓 Chrome，Android UA + `is_mobile`）：
+```
+修复前  点缩略图后：共 2 个 video，正在播 2 个（paused=False，t 同步到 2.29，
+                     其中一个「看得见=False 被隐藏=True」）
+修复后  点缩略图后：共 1 个 video，正在播 1 个；pause() 后 t 停住不涨
+```
+
+**修法**：
+1. hero 只渲染一个，用同一套 DOM 同时服务两种断点：外层容器 `lg:grid lg:grid-cols-[...]`，
+   窄屏时 hero 是块级元素自然满宽堆叠、列表在下面，宽屏时落进两栏栅格。
+2. `useVideoPlayer` 的 effect cleanup 里加 `media.pause()`——只在切视频/卸载时
+   走到（续期走的 `reload()` 不重跑 effect），不会打断播放中续期。
+
+**教训**：响应式布局里**不要把带副作用的组件渲染两遍**再用 `hidden` 二选一，
+尤其是 video/audio 这类「隐藏也会继续跑」的元素。
+
 域名：2026-10-14 起用 **xiaoying.selector.fun**（`wrangler.toml` 的
 `ALLOW_REFERERS` 已同步），旧 `xiaoying.68a02a26.nip.io` 已失效。
 
