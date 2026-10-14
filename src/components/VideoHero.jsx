@@ -1,40 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import useVideoPlayer from './useVideoPlayer';
 import useSignedUrl from './useSignedUrl';
+import useVideoOrientation from './useVideoOrientation';
 
 /**
  * 大画面视频组件。autoplay 为 true 时挂载后自动播放。
  * 父组件用 key={video.key} 触发重建，确保旧节点资源被彻底释放。
+ *
+ * @param {boolean} [wide]  横版还是竖版；不传就自己探测（单独使用时）
  */
-export default function VideoHero({ video, autoplay = false }) {
+export default function VideoHero({ video, autoplay = false, wide: wideProp }) {
   const { mediaRef, status, reload } = useVideoPlayer(video?.key);
   // 封面是 R2 key，要换成签名 URL 才显示得出来
   const { url: posterUrl } = useSignedUrl(video?.poster);
   const attemptedRef = useRef(false);
-  // 横版还是竖版：元数据到了才知道，先按竖版渲染（已有视频都是竖版）
-  const [wide, setWide] = useState(false);
+  // 横版还是竖版，优先级：父组件传的 > 封面探测 > 视频自己的元数据。
+  // 封面探测不依赖播放（autoplay 被拦时 videoWidth 一直是 0），所以排前面；
+  // 元数据只在没有封面时兜底。
+  const ownWide = useVideoOrientation(wideProp === undefined ? video?.poster : '');
+  const [metaWide, setMetaWide] = useState(null);
+  const wide = (wideProp ?? ownWide ?? metaWide) ?? false;
 
   useEffect(() => {
     attemptedRef.current = false;
-    setWide(false); // 换视频时回到默认，等新的探测结果
   }, [video?.key]);
-
-  // 横竖版探测：封面图和视频本身同比例，且不依赖播放（autoplay 被拦时
-  // videoWidth 一直是 0，拿不到）。没有封面时才退回等 video 的元数据。
-  useEffect(() => {
-    if (!posterUrl) return undefined;
-    let alive = true;
-    const im = new Image();
-    im.onload = () => {
-      if (alive && im.naturalWidth && im.naturalHeight) {
-        setWide(im.naturalWidth >= im.naturalHeight);
-      }
-    };
-    im.src = posterUrl;
-    return () => {
-      alive = false;
-    };
-  }, [posterUrl, video?.key]);
 
   useEffect(() => {
     if (!autoplay || attemptedRef.current) return;
@@ -86,9 +75,10 @@ export default function VideoHero({ video, autoplay = false }) {
             poster={posterUrl || undefined}
             className={videoBox}
             onLoadedMetadata={(e) => {
+              // 兜底：封面没给出方向时才信视频自己的元数据
               const v = e.currentTarget;
               if (v.videoWidth && v.videoHeight) {
-                setWide(v.videoWidth >= v.videoHeight);
+                setMetaWide(v.videoWidth >= v.videoHeight);
               }
             }}
             onError={() => reload()}

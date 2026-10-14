@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import VideoHero from './VideoHero';
 import VideoThumb from './VideoThumb';
+import useVideoOrientation from './useVideoOrientation';
 
 /** 拍平 sections 得到所有 video（保持分区顺序）。 */
 function flatten(sections) {
@@ -50,6 +51,10 @@ export default function VideoGallery({ sections }) {
     usable.find((s) => (s.videos || []).some((v) => v.key === active.key)) || usable[0];
   const activeVideos = activeSection.videos || [];
 
+  // 当前视频是横版还是竖版（用封面探测，不依赖播放）。横版时把播放器那栏
+  // 拉宽、从右侧缩略列表要空间——16:9 在窄栏里只有 194px 高，太小。
+  const wide = useVideoOrientation(active.poster) ?? false;
+
   const select = (v) => {
     if (v.key === active.key) return;
     setActiveKey(v.key);
@@ -88,9 +93,14 @@ export default function VideoGallery({ sections }) {
     <p className="px-1 text-xs leading-relaxed text-slate-500">{activeSection.desc}</p>
   ) : null;
 
-  // 竖版 9:16 缩略卡：完整显示封面，不再裁切
+  // 竖版 9:16 缩略卡：完整显示封面，不再裁切。
+  // 横版时右侧栏变窄，缩略图改 2 列，避免挤成一小条
   const thumbs = (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div
+      className={`grid grid-cols-2 gap-3 ${
+        wide ? '' : 'sm:grid-cols-3'
+      }`}
+    >
       {activeVideos.map((v) => (
         <VideoThumb key={v.key} video={v} active={v.key === active.key} onSelect={select} />
       ))}
@@ -101,10 +111,18 @@ export default function VideoGallery({ sections }) {
     <>
       {tabs}
 
-      {/* 宽屏：左 2/5 播放器（竖版收窄居中）+ 右 3/5 当前分区列表 */}
-      <div className="hidden items-start gap-6 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      {/* 宽屏：左播放器 + 右当前分区列表。
+          横版 3:2（播放器约 600px 宽，16:9 能到 337px 高）；
+          竖版 2:3（播放器按高度收窄，列表更宽好放 9:16 缩略图） */}
+      <div
+        className={`hidden items-start gap-6 lg:grid ${
+          wide
+            ? 'lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]'
+            : 'lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'
+        }`}
+      >
         {/* key 触发 hero 重建，释放旧 hls.js 实例 */}
-        <VideoHero key={active.key} video={active} autoplay />
+        <VideoHero key={active.key} video={active} autoplay wide={wide} />
         <div>
           {desc}
           <div className={desc ? 'mt-3' : ''}>{thumbs}</div>

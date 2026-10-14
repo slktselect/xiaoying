@@ -95,13 +95,22 @@ sections: [
   封面和视频同比例，且不依赖播放。**不能用 `video` 的 `loadedmetadata`**：
   autoplay 被浏览器拦截时 hls.js 不加载数据，`videoWidth` 一直是 0（实测
   headless 里除自动播成功的那个外全是 0）。`onLoadedMetadata` 仅作无封面时的兜底。
-  - 横版：`aspect-video w-full`（占满列宽，345×194）
+  - 横版：`aspect-video w-full`（占满列宽）
   - 竖版：`aspect-[9/16] lg:h-[min(68vh,600px)] lg:w-auto`，外层 `lg:w-fit`
-    收缩到视频宽（329×585），两侧不露黑
+    收缩到视频宽，两侧不露黑
 - **缩略卡**：自然比例（见上），无需 JS 探测
+- **栅格跟着方向走**（`useVideoOrientation` 提到 Gallery 层，通过 prop 传给 Hero，
+  避免两个组件各探测一遍）：
+  - 横版 `lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]`——**向右侧缩略列表要空间**，
+    播放器从 345×194 涨到 **539×303**（实测）
+  - 竖版 `lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]`——列表更宽，好放 9:16 缩略图
+  - 横版时缩略图改 2 列（右栏变窄，3 列会挤成一条）
+  - `useVideoOrientation` 返回三态 `true/false/null`，让"没封面"时能退到
+    `loadedmetadata` 兜底
 
 验证：Playwright 遍历 7 个分区，播放器盒比例与封面原比误差 < 0.03 判贴合，
-结果 **7/7**（3 个横版分区 345×194=1.778，4 个竖版 329×585=0.562）。
+结果 **7/7**（3 个横版分区 539×303=1.779，4 个竖版 329×585=0.562）；
+1280/768/390 三端横向溢出均为 0。
 
 域名：2026-10-14 起用 **xiaoying.selector.fun**（`wrangler.toml` 的
 `ALLOW_REFERERS` 已同步），旧 `xiaoying.68a02a26.nip.io` 已失效。
