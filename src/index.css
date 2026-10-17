@@ -4,6 +4,13 @@ html {
   scroll-behavior: smooth;
 }
 
+/* 尊重系统「减少动态效果」设置：关掉平滑滚动 */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 /* 打印 / 导出 PDF 时：去掉阴影与固定元素，让简历落在纸上 */
 @media print {
   .no-print {

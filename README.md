@@ -24,17 +24,25 @@ sections: [{ id: 'work', title: '工作经历', items: [{ title, subtitle, perio
 
 改完保存 → `npm run deploy`。本地预览：`npm run dev`（改配置会热更新）。
 
+视频区行为（可选）也在同一个文件里：
+
+```js
+videoGallery: { autoNext: false },  // true = 一个视频播完自动接着播本分区的下一个
+```
+
 ## 项目结构
 
 ```
-src/resume.config.js    ← 简历内容，只改这里
-src/App.jsx             页面组装（Hero / 导航 / 视频 / 分区 / 分享）
-src/components/         Hero、Nav、Section、VideoCard、ShareButton
-src/main.jsx            React 入口
-src/index.css           Tailwind 入口 + 打印样式
+src/resume.config.js    ← 简历内容 + 视频区行为，只改这里
+src/App.jsx             页面组装（Hero / 导航 / 视频 / 分区 / 分享 / 回顶部）
+src/components/         Hero、Nav、Section、ShareButton、BackToTop、ErrorBoundary
+                        VideoGallery、VideoHero、VideoThumb、VideoCard
+                        useVideoPlayer / useSignedUrl / useVideoOrientation
+src/main.jsx            React 入口（ErrorBoundary 包裹，配置写错不白屏）
+src/index.css           Tailwind 入口 + 打印样式 + reduced-motion
 worker/index.js         Worker：视频签名校验 + R2 回源 + HLS 列表改写
 worker/usage.js         每日用量统计与免费额度护栏（Workers KV）
-index.html              Vite 入口
+index.html              Vite 入口（emoji favicon / theme-color）
 vite.config.js          React / Tailwind 插件，产物输出到 dist/
 wrangler.toml           Workers / 静态资源(dist) / R2 绑定 / 环境变量
 ```
@@ -48,6 +56,17 @@ wrangler.toml           Workers / 静态资源(dist) / R2 绑定 / 环境变量
 - 弹窗里可复制链接（无 Clipboard API 时退回 `execCommand`）、保存二维码 PNG；
   手机浏览器会额外出现「系统分享」（`navigator.share`）；
 - 点击遮罩、按 `Esc`、`关闭` 都能关掉；打印时按钮与弹窗都不输出。
+
+## 交互与快捷键
+
+- **手动播放**：所有视频默认都不自动播——点播放器上的播放按钮才开始；切分区 / 换视频只显示封面。
+- **`←` / `→`**：播放器在可视区域内时，用方向键在本分区内切换上一个 / 下一个视频（在读下方文字时不会抢按键）。
+- **序号**：播放器右上角显示「当前 / 本分区总数」，长列表里知道自己看到哪了。
+- **接着看**：切走到别的视频再回来，会从上次离开的位置继续播放（看完的从头开始；位置存在内存里，刷新页面清零）。
+- **连播（可选）**：`src/resume.config.js` 里把 `videoGallery.autoNext` 改成 `true`，一个视频播完会自动接着播本分区的下一个。
+- **复制联系方式**：每一条联系方式右边有小图标，点一下复制电话 / 邮箱（桌面端常用；手机上点链接本身更顺手）。
+- **回到顶部**：往下滚过一屏后，右下角「分享」按钮上方会出现回顶部按钮。
+- **SEO / 分享卡片**：页面标题、description、OG 信息由 `resume.config.js` 的 `profile` 字段自动生成，改配置即生效。
 
 ## 路由
 
@@ -129,7 +148,7 @@ npm run tail        # 线上实时日志
 部署拿到域名后，**务必**在 `wrangler.toml` 的 `[vars]` 里收紧，然后重新 `npx wrangler deploy`：
 
 ```toml
-VIDEO_KEYS = "gna.mp4"                                       # 只允许这些 key 被签发播放
+VIDEO_KEYS = "videos/*"                                      # 只允许这些 key 被签发播放（支持前缀通配）
 ALLOW_REFERERS = "xiaoying.xxx.workers.dev,resume.example.com"  # 只允许本站页面嵌入播放
 ALLOW_EMPTY_REFERER = "0"                                    # 无 Referer 的直接访问一律 403
 BIND_IP = "1"                                                # 可选：签名绑定客户端 IP
@@ -193,7 +212,7 @@ m3u8 里是**相对路径**（`seg_000.ts`），播放器按相对路径请求�
 ### 签名过期与自动续期
 
 签名地址有有效期（`PLAY_TTL`，默认 30 分钟），页面开久了会过期。播放器做了两层处理，
-见 `src/components/VideoCard.jsx`：
+见 `src/components/useVideoPlayer.js`（由 `VideoHero.jsx` 调用）：
 
 - **主动续期**：拿到播放地址时记下响应里的 `exp`，在过期前 60 秒（且正在播放时）
   自动向 `/api/video` 换一份新播放列表，播放不中断；
@@ -335,5 +354,5 @@ curl https://<你的域名>/usage
 - CDN 缓存会让超限后的旧链接在 `max-age` 秒内继续可用；上限即便如此也只是软着陆，
   真正兜底靠 WAF 速率限制。
 - 页面未设置 CORS（默认最严）；若后续要加载跨域字幕再另行放行。
-- `resume.json` 是纯数据，`app.js` 全量渲染，改内容无需改动代码。
+- 简历内容全部在 `src/resume.config.js`，改内容不需要动组件代码；渲染出错时页面会显示友好提示（`ErrorBoundary`）而不是白屏。
 - 不要把 Cloudflare 账号 ID、R2 S3 端点中的账号段、`SIGN_SECRET` 写进仓库。

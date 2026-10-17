@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useVideoPlayer from './useVideoPlayer';
 import useSignedUrl from './useSignedUrl';
 import useVideoOrientation from './useVideoOrientation';
@@ -6,11 +6,30 @@ import useVideoOrientation from './useVideoOrientation';
 /**
  * 大画面视频组件。挂载后只显示封面（poster），
  * 等用户点播放按钮才播放，不自动播放。
+ * 唯一例外：连播（videoGallery.autoNext）时父组件显式传 autoPlay，
+ * 表示「上一个视频刚看完，这个是顺着往下播的」。
+ *
  * 父组件用 key={video.key} 触发重建，确保旧节点资源被彻底释放。
  *
- * @param {boolean} [wide]  横版还是竖版；不传就自己探测（单独使用时）
+ * @param {object}  video                视频配置 {key,title,desc,poster,section}
+ * @param {boolean} [wide]               横版还是竖版；不传就自己探测（单独使用时）
+ * @param {number}  [startAt]            上次观看到的秒数；切回来时接着看（看完传 0）
+ * @param {boolean} [autoPlay]           数据就绪后立即播放（仅连播场景）
+ * @param {number}  [index]              本分区内序号（配合 total 显示「3 / 12」）
+ * @param {number}  [total]              本分区视频总数
+ * @param {(key: string) => void} [onEnded]    播放结束
+ * @param {(t: number) => void}   [onProgress] 播放进度（节流上报，供父组件记忆）
  */
-export default function VideoHero({ video, wide: wideProp }) {
+export default function VideoHero({
+  video,
+  wide: wideProp,
+  startAt = 0,
+  autoPlay = false,
+  index,
+  total,
+  onEnded,
+  onProgress,
+}) {
   const { mediaRef, status, reload } = useVideoPlayer(video?.key);
   // 封面是 R2 key，要换成签名 URL 才显示得出来
   const { url: posterUrl } = useSignedUrl(video?.poster);
@@ -20,6 +39,26 @@ export default function VideoHero({ video, wide: wideProp }) {
   const ownWide = useVideoOrientation(wideProp === undefined ? video?.poster : '');
   const [metaWide, setMetaWide] = useState(null);
   const wide = (wideProp ?? ownWide ?? metaWide) ?? false;
+
+  // 「接着看」只恢复一次：播放中续期 reload() 也会再触发 loadedmetadata，
+  // 那时进度由 hook 自己的恢复逻辑管，不能再跳回 startAt
+  const restoredRef = useRef(false);
+  // 进度上报节流：timeupdate 每秒最多一次，pause / ended 立即报
+  const lastReportRef = useRef(0);
+
+  // 连播起播：仅父组件明确要求（autoPlay）时才 play()，
+  // 被浏览器拦了就退回手动点，封面还在
+  useEffect(() => {
+    if (!autoPlay) return undefined;
+    const m = mediaRef.current;
+    if (!m) return undefined;
+    const tryPlay = () => {
+      m.play().catch(() => {});
+    };
+    if (m.readyState >= 2) tryPlay();
+    else m.addEventListener('loadeddata', tryPlay, { once: true });
+    return () => m.removeEventListener('loadeddata', tryPlay);
+  }, [autoPlay, video?.key]);
 
   if (!video) return null;
 
@@ -60,14 +99,47 @@ export default function VideoHero({ video, wide: wideProp }) {
               if (v.videoWidth && v.videoHeight) {
                 setMetaWide(v.videoWidth >= v.videoHeight);
               }
+              // 第一次元数据就绪时恢复到上次观看位置（看完的不恢复）
+              if (!restoredRef.current) {
+                restoredRef.current = true;
+                if (startAt > 1 && v.duration && startAt < v.duration - 1) {
+                  try {
+                    v.currentTime = startAt;
+                  } catch {
+                    /* 某些浏览器在元数据就绪前设置会抛错，忽略 */
+                  }
+                }
+              }
             }}
+            onTimeUpdate={() => {
+              const m = mediaRef.current;
+              if (!m || !onProgress) return;
+              const now = Date.now();
+              if (now - lastReportRef.current < 1000) return;
+              lastReportRef.current = now;
+              onProgress(m.currentTime);
+            }}
+            onPause={() => {
+              const m = mediaRef.current;
+              if (m && onProgress) onProgress(m.currentTime);
+            }}
+            onEnded={() => onEnded?.(video.key)}
             onError={() => reload()}
           />
+
+          {/* 本分区内序号，长列表里知道自己看到哪了 */}
+          {index > 0 && total > 0 && (
+            <span className="no-print absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs tabular-nums text-white/90">
+              {index} / {total}
+            </span>
+          )}
+
           {status.loading && (
             <div className="absolute inset-0 grid place-items-center bg-black/50 text-sm text-white">
               正在获取播放地址…
             </div>
           )}
+
           {!status.loading && status.error && (
             <div className="absolute inset-0 grid place-items-center gap-3 bg-black/60 px-6 text-center">
               <p className="text-sm text-white">{status.error}</p>
@@ -81,6 +153,13 @@ export default function VideoHero({ video, wide: wideProp }) {
             </div>
           )}
         </div>
+
+        {/* 键盘提示只在桌面端显示（手机上没键盘） */}
+        {total > 1 && (
+          <p className="no-print mt-2 hidden text-xs text-slate-400 lg:block">
+            ← / → 切换本分区视频
+          </p>
+        )}
       </div>
     </div>
   );

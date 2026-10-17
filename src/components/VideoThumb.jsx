@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import useSignedUrl from './useSignedUrl';
 
 /**
@@ -12,7 +13,10 @@ import useSignedUrl from './useSignedUrl';
  */
 export default function VideoThumb({ video, active = false, onSelect }) {
   const { url: posterUrl, loading, error } = useSignedUrl(video.poster);
-  const placeholder = loading ? '封面加载中…' : error ? '封面不可用' : '暂无封面';
+  // 封面签名地址过期/加载失败时退回占位，别留一张碎图
+  const [imgOk, setImgOk] = useState(true);
+  useEffect(() => setImgOk(true), [posterUrl]);
+  const placeholder = loading ? '封面加载中…' : error || !imgOk ? '封面不可用' : '暂无封面';
 
   return (
     <button
@@ -27,12 +31,13 @@ export default function VideoThumb({ video, active = false, onSelect }) {
           横版封面就是 16:9、竖版封面就是 9:16，永远完整显示。
           比「JS 探测方向再切 class」更稳——不依赖 onLoad 的触发时机 */}
       <div className="min-h-[120px] w-full overflow-hidden rounded-lg bg-black">
-        {posterUrl ? (
+        {posterUrl && imgOk ? (
           <img
             src={posterUrl}
             alt={video.title}
             loading="lazy"
             className="block h-auto w-full"
+            onError={() => setImgOk(false)}
           />
         ) : (
           <div className="flex aspect-[9/16] w-full items-center justify-center bg-slate-100 text-xs text-slate-400">

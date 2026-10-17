@@ -5,9 +5,21 @@ import Nav from './components/Nav.jsx';
 import VideoGallery from './components/VideoGallery.jsx';
 import Section from './components/Section.jsx';
 import ShareButton from './components/ShareButton.jsx';
+import BackToTop from './components/BackToTop.jsx';
+
+/** 按 attr/key 找或建一个 <meta>，并写入 content（SEO / 分享卡片用） */
+function upsertMeta(attr, key, content) {
+  let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+  if (!el) {
+    el = document.createElement('meta');
+    el.setAttribute(attr, key);
+    document.head.appendChild(el);
+  }
+  el.setAttribute('content', content);
+}
 
 export default function App() {
-  const { profile = {}, contacts = [], sections = [], share, footer } = resume;
+  const { profile = {}, contacts = [], sections = [], share, footer, videoGallery } = resume;
   // sections 字段有两类：
   //   1) 旧版：[{id, title, items: [...]}, ...] —— 正文分区（id 必填）
   //   2) 新版（视频嵌套）：[{title, desc, videos: [...]}, ...] —— 视频分区（id 缺省，videos 必填）
@@ -30,11 +42,22 @@ export default function App() {
     [hasVideos, pageSections],
   );
 
+  // 标题与 SEO meta 都由配置驱动：改 resume.config.js 即同步搜索引擎 / 微信分享卡片
   useEffect(() => {
-    document.title = profile.name
+    const title = profile.name
       ? `${profile.name} · ${profile.title || '个人简历'}`
       : '个人简历';
-  }, [profile.name, profile.title]);
+    document.title = title;
+
+    const desc = (profile.summary || '个人在线简历').trim();
+    upsertMeta('name', 'description', desc);
+    upsertMeta('property', 'og:title', title);
+    upsertMeta('property', 'og:description', desc);
+    upsertMeta('property', 'og:type', 'profile');
+    if (typeof location !== 'undefined') {
+      upsertMeta('property', 'og:url', location.origin + location.pathname);
+    }
+  }, [profile.name, profile.title, profile.summary]);
 
   const footText =
     footer?.text ||
@@ -49,7 +72,7 @@ export default function App() {
         {hasVideos && (
           <section id="videos" className="scroll-mt-20 pt-8">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">视频介绍</h2>
-            <VideoGallery sections={videoSections} />
+            <VideoGallery sections={videoSections} autoNext={videoGallery?.autoNext === true} />
           </section>
         )}
 
@@ -64,6 +87,7 @@ export default function App() {
       </footer>
 
       {share?.enabled !== false && <ShareButton config={share} />}
+      <BackToTop />
     </div>
   );
 }

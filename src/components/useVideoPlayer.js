@@ -10,6 +10,29 @@ const MIN_REFRESH_GAP = 5000;
 const MAX_FAILS = 3;
 
 /**
+ * 彻底停下并释放一个 <video> 元素：pause + 摘掉 src + load() 复位。
+ *
+ * 仅 pause() 不可靠：节点被移除/隐藏后，部分安卓 WebView（微信）里音频仍会
+ * 继续放；hls.js 销毁后 media 上还会留着 blob 地址。必须连 source 一起摘掉
+ * 并 load()，强制媒体元素复位、释放解码器与音频焦点。
+ * 对已暂停或无 src 的元素调用是安全的（幂等）。
+ */
+export function stopVideo(video) {
+  if (!video) return;
+  try {
+    video.pause();
+  } catch {
+    /* 元素可能已经失效，忽略 */
+  }
+  try {
+    video.removeAttribute('src');
+    video.load();
+  } catch {
+    /* 元素可能已经失效，忽略 */
+  }
+}
+
+/**
  * 视频播放 hook：取签名 URL、加载 HLS、定时续期。
  * @param {string} key  R2 对象 key
  * @returns {{ mediaRef: React.RefObject, status: { loading: boolean, error: string }, reload: () => void }}
@@ -192,6 +215,11 @@ export default function useVideoPlayer(key) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      // 兜底硬停：useEffect cleanup 是被动效果，执行时 <video> 节点可能已被
+      // 移出 DOM，部分安卓 WebView（微信）会吞掉 cleanup 里的 pause()，
+      // 旧视频音频就会继续放。摘掉 src 再 load() 强制复位（见 stopVideo）。
+      // 真正的第一道拦截在 VideoGallery 的点击手势里同步执行。
+      stopVideo(media);
     };
   }, [key, nonce]);
 

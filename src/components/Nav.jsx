@@ -4,18 +4,36 @@ export default function Nav({ items }) {
   const [active, setActive] = useState(items[0]?.id);
 
   useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY + 120;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const line = 120; // 吸顶导航栏高度 + 一点余量
       let cur = items[0]?.id;
       items.forEach((i) => {
-        const t = document.getElementById(i.id);
-        if (t && t.offsetTop <= y) cur = i.id;
+        const el = document.getElementById(i.id);
+        // 用 getBoundingClientRect：offsetTop 相对定位父级，容器一变就漂移
+        if (el && el.getBoundingClientRect().top <= line) cur = i.id;
       });
+      // 滚到页面底部时高亮最后一项，否则最后一段永远点不亮
+      if (
+        items.length &&
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4
+      ) {
+        cur = items[items.length - 1].id;
+      }
       setActive(cur);
     };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [items]);
 
   if (!items.length) return null;

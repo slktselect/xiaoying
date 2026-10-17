@@ -1,5 +1,33 @@
+import { useState } from 'react';
+
+/** 复制文本；Clipboard API 不可用（非 HTTPS / 旧浏览器）时退回 execCommand */
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  }
+}
+
 export default function Hero({ profile, contacts }) {
   const initial = (profile.name || '?').trim().slice(0, 1);
+  // 当前显示「已复制」对勾的联系行下标；-1 = 无
+  const [copiedIdx, setCopiedIdx] = useState(-1);
+
+  const copy = async (idx, text) => {
+    const ok = await copyText(text);
+    setCopiedIdx(ok ? idx : -1);
+    setTimeout(() => setCopiedIdx((cur) => (cur === idx ? -1 : cur)), 2000);
+  };
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -23,20 +51,44 @@ export default function Hero({ profile, contacts }) {
 
           {contacts.length > 0 && (
             <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-              {contacts.map((c) => (
-                <li key={`${c.label}-${c.value}`} className="max-w-full break-words text-slate-600">
-                  <span className="text-slate-400">{c.label}：</span>
+              {contacts.map((c, i) => (
+                <li
+                  key={`${c.label}-${c.value}`}
+                  className="flex max-w-full items-center gap-1 text-slate-600"
+                >
+                  <span className="shrink-0 text-slate-400">{c.label}：</span>
                   {c.href ? (
                     <a
                       href={c.href}
-                      className="inline-block text-slate-700 underline-offset-2 hover:text-blue-600 hover:underline"
+                      className="inline-block break-words text-slate-700 underline-offset-2 hover:text-blue-600 hover:underline"
                       {...(c.href.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                     >
                       {c.value}
                     </a>
                   ) : (
-                    c.value
+                    <span className="break-words text-slate-700">{c.value}</span>
                   )}
+                  {/* 一键复制：手机上点链接更顺手，桌面上复制电话/邮箱更常用 */}
+                  <button
+                    type="button"
+                    onClick={() => copy(i, c.value)}
+                    aria-label={`复制${c.label}`}
+                    title={`复制${c.label}`}
+                    className="no-print shrink-0 rounded p-1 text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
+                  >
+                    {copiedIdx === i ? (
+                      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                        <path fill="currentColor" d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"
+                        />
+                      </svg>
+                    )}
+                  </button>
                 </li>
               ))}
             </ul>
