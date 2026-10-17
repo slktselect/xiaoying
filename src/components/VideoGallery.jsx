@@ -127,7 +127,7 @@ export default function VideoGallery({ sections }) {
         }`}
       >
         {/* key 触发 hero 重建，释放旧 hls.js 实例 */}
-        <VideoHero key={active.key} video={active} autoplay wide={wide} />
+        <VideoHero key={active.key} video={active} wide={wide} />
         <div className="mt-4 space-y-3 lg:mt-0">
           {desc}
           {thumbs}

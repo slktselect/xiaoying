@@ -1,45 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import useVideoPlayer from './useVideoPlayer';
 import useSignedUrl from './useSignedUrl';
 import useVideoOrientation from './useVideoOrientation';
 
 /**
- * 大画面视频组件。autoplay 为 true 时挂载后自动播放。
+ * 大画面视频组件。挂载后只显示封面（poster），
+ * 等用户点播放按钮才播放，不自动播放。
  * 父组件用 key={video.key} 触发重建，确保旧节点资源被彻底释放。
  *
  * @param {boolean} [wide]  横版还是竖版；不传就自己探测（单独使用时）
  */
-export default function VideoHero({ video, autoplay = false, wide: wideProp }) {
+export default function VideoHero({ video, wide: wideProp }) {
   const { mediaRef, status, reload } = useVideoPlayer(video?.key);
   // 封面是 R2 key，要换成签名 URL 才显示得出来
   const { url: posterUrl } = useSignedUrl(video?.poster);
-  const attemptedRef = useRef(false);
   // 横版还是竖版，优先级：父组件传的 > 封面探测 > 视频自己的元数据。
-  // 封面探测不依赖播放（autoplay 被拦时 videoWidth 一直是 0），所以排前面；
+  // 封面探测不依赖播放（不自动播放时 videoWidth 一直是 0），所以排前面；
   // 元数据只在没有封面时兜底。
   const ownWide = useVideoOrientation(wideProp === undefined ? video?.poster : '');
   const [metaWide, setMetaWide] = useState(null);
   const wide = (wideProp ?? ownWide ?? metaWide) ?? false;
-
-  useEffect(() => {
-    attemptedRef.current = false;
-  }, [video?.key]);
-
-  useEffect(() => {
-    if (!autoplay || attemptedRef.current) return;
-    const m = mediaRef.current;
-    if (!m) return;
-    // 等待 source 加载完再尝试播放
-    const tryPlay = () => {
-      attemptedRef.current = true;
-      m.play().catch(() => {
-        // 浏览器拦截 autoplay → 退回等待用户手动点
-        attemptedRef.current = false;
-      });
-    };
-    if (m.readyState >= 2) tryPlay();
-    else m.addEventListener('loadeddata', tryPlay, { once: true });
-  }, [autoplay, video?.key]);
 
   if (!video) return null;
 
