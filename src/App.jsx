@@ -36,7 +36,7 @@ export default function App() {
   const hasVideos = videoSections.some((s) => (s.videos || []).length > 0);
   const navItems = useMemo(
     () => [
-      ...(hasVideos ? [{ id: 'videos', title: '视频介绍' }] : []),
+      ...(hasVideos ? [{ id: 'videos', title: '剪辑作品' }] : []),
       ...pageSections.map((s) => ({ id: s.id, title: s.title })),
     ],
     [hasVideos, pageSections],
@@ -71,7 +71,7 @@ export default function App() {
       <main className="mx-auto w-full max-w-5xl px-4 pb-10 sm:pb-16">
         {hasVideos && (
           <section id="videos" className="scroll-mt-20 pt-8">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900">视频介绍</h2>
+            <h2 className="mb-4 text-lg font-semibold text-slate-900">剪辑作品</h2>
             <VideoGallery sections={videoSections} autoNext={videoGallery?.autoNext === true} />
           </section>
         )}

@@ -1459,7 +1459,7 @@ export default function App() {
   // ...
   {visibleVideos.length > 0 && (
     <section id="videos" className="scroll-mt-20 pt-8">
-      <h2 className="mb-4 text-lg font-semibold text-slate-900">视频介绍</h2>
+      <h2 className="mb-4 text-lg font-semibold text-slate-900">剪辑作品</h2>
       <VideoGallery videos={visibleVideos} />
     </section>
   )}
