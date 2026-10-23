@@ -115,6 +115,52 @@ function useSwipe({ onNext, onPrev, threshold = 44 }) {
   return { onTouchStart, onTouchEnd, moved };
 }
 
+/**
+ * 左右箭头的渐进式自动隐藏。
+ *
+ * 出现（或重新出现）后静置 delay 毫秒开始淡出，淡出由 CSS transition 完成；
+ * 鼠标移动 / 触摸 / 切图时 reveal() 再淡入并重新计时。
+ * 隐藏时加 pointer-events-none，避免看不见的按钮挡住"点大图进全屏"。
+ */
+function useAutoHide(delay = 1000) {
+  const [visible, setVisible] = useState(true);
+  const timer = useRef(null);
+
+  const clear = useCallback(() => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  }, []);
+
+  const reveal = useCallback(() => {
+    setVisible(true);
+    clear();
+    timer.current = setTimeout(() => setVisible(false), delay);
+  }, [clear, delay]);
+
+  useEffect(() => {
+    reveal();
+    return clear;
+  }, [reveal, clear]);
+
+  return { visible, reveal };
+}
+
+/**
+ * 箭头按钮的淡入淡出类名（配合按钮上已有的 transition）。
+ *
+ * 只在能悬停的设备（桌面鼠标）上真正隐藏：触屏上手指一碰大图就进全屏了，
+ * 箭头一旦隐藏就没法再唤出来，所以 `[@media(hover:hover)]` 之外保持常显。
+ */
+function fadeArrow(visible) {
+  const hidden =
+    '[@media(hover:hover)]:pointer-events-none [@media(hover:hover)]:opacity-0';
+  return `duration-700 ease-out motion-reduce:transition-none focus-visible:opacity-100 focus-visible:pointer-events-auto ${
+    visible ? 'opacity-100' : hidden
+  }`;
+}
+
 /** 预加载相邻照片，滑动/切图时不再等签名 URL */
 function NeighborImage({ photoKey }) {
   const { url } = useSignedUrl(photoKey);
@@ -176,6 +222,12 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
     onPrev: () => many && onChange(-1),
   });
 
+  // 箭头静置 1 秒淡出；移动鼠标 / 触摸 / 切图后淡入
+  const arrows = useAutoHide(1000);
+  useEffect(() => {
+    arrows.reveal();
+  }, [index, arrows.reveal]);
+
   if (!photo) return null;
 
   const prevKey = many ? photos[(index - 1 + photos.length) % photos.length].key : '';
@@ -208,7 +260,11 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
       {/* 图片区：点空白关闭，支持左右滑动 */}
       <div
         className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden overscroll-contain px-1 sm:px-16"
-        onTouchStart={swipe.onTouchStart}
+        onMouseMove={arrows.reveal}
+        onTouchStart={(e) => {
+          swipe.onTouchStart(e);
+          arrows.reveal();
+        }}
         onTouchEnd={swipe.onTouchEnd}
         onClick={(e) => {
           if (swipe.moved.current) {
@@ -237,7 +293,9 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
               type="button"
               onClick={() => onChange(-1)}
               aria-label="上一张"
-              className="absolute left-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white/90 transition hover:bg-black/55 sm:left-4"
+              className={`absolute left-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white/90 transition hover:bg-black/55 sm:left-4 ${fadeArrow(
+                arrows.visible,
+              )}`}
             >
               <Arrow dir="left" />
             </button>
@@ -245,7 +303,9 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
               type="button"
               onClick={() => onChange(1)}
               aria-label="下一张"
-              className="absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white/90 transition hover:bg-black/55 sm:right-4"
+              className={`absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-black/35 text-white/90 transition hover:bg-black/55 sm:right-4 ${fadeArrow(
+                arrows.visible,
+              )}`}
             >
               <Arrow dir="right" />
             </button>
@@ -320,6 +380,9 @@ function PhotoThumb({ photo, active = false, onSelect }) {
  * 全屏：点大图或右上角四角图标进入；全屏内可左右方向键、箭头按钮、手指滑动切换，
  * Esc / 关闭按钮 / 点空白退出。
  *
+ * 左右箭头静置 1 秒后淡出（700ms 过渡），鼠标移动 / 触摸 / 切图 / 滚入视口时淡入；
+ * 触屏设备上保持常显——手指一碰大图就进全屏，隐藏后没法再唤出。
+ *
  * 照片存在 R2，经 Worker 的 /api/video 签发短期签名 URL 后加载（防盗链同视频）。
  */
 export default function PhotoGallery({ sections }) {
@@ -359,6 +422,25 @@ export default function PhotoGallery({ sections }) {
 
   // 大图区域也支持左右滑动（移动端最直觉的操作）
   const swipe = useSwipe({ onNext: () => go(1), onPrev: () => go(-1) });
+
+  // 箭头静置 1 秒淡出；移动鼠标 / 触摸 / 切图 / 滚到这一屏后淡入
+  const arrows = useAutoHide(1000);
+  const heroRef = useRef(null);
+  useEffect(() => {
+    arrows.reveal();
+  }, [activeIdx, arrows.reveal]);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((en) => en.isIntersecting)) arrows.reveal();
+      },
+      { threshold: 0.4 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [arrows.reveal]);
 
   // 键盘左右方向键切换照片（输入框聚焦时不劫持；全屏时交给 Lightbox 自己处理）
   useEffect(() => {
@@ -415,7 +497,13 @@ export default function PhotoGallery({ sections }) {
     <div className="lg:grid lg:items-start lg:gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {/* 左：大图 + 照片信息 */}
       <div>
-        <div className="relative">
+        <div
+          ref={heroRef}
+          className="relative"
+          onMouseEnter={arrows.reveal}
+          onMouseMove={arrows.reveal}
+          onFocusCapture={arrows.reveal}
+        >
           <button
             type="button"
             onClick={() => {
@@ -428,7 +516,10 @@ export default function PhotoGallery({ sections }) {
             }}
             aria-label={`全屏查看 ${active.title}`}
             className="block w-full cursor-zoom-in select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-            onTouchStart={swipe.onTouchStart}
+            onTouchStart={(e) => {
+              swipe.onTouchStart(e);
+              arrows.reveal();
+            }}
             onTouchEnd={swipe.onTouchEnd}
           >
             <div className="flex min-h-[220px] w-full touch-pan-y items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 sm:min-h-[280px]">
@@ -458,14 +549,16 @@ export default function PhotoGallery({ sections }) {
             <ExpandIcon />
           </button>
 
-          {/* 左右切换按钮（打印时隐藏） */}
+          {/* 左右切换按钮（打印时隐藏；静置 1 秒后淡出） */}
           {photos.length > 1 && (
             <>
               <button
                 type="button"
                 onClick={() => go(-1)}
                 aria-label="上一张"
-                className="no-print absolute left-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-slate-700 shadow-md transition hover:bg-white sm:left-2 sm:h-10 sm:w-10"
+                className={`no-print absolute left-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-slate-700 shadow-md transition hover:bg-white sm:left-2 sm:h-10 sm:w-10 ${fadeArrow(
+                  arrows.visible,
+                )}`}
               >
                 <Arrow dir="left" />
               </button>
@@ -473,7 +566,9 @@ export default function PhotoGallery({ sections }) {
                 type="button"
                 onClick={() => go(1)}
                 aria-label="下一张"
-                className="no-print absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-slate-700 shadow-md transition hover:bg-white sm:right-2 sm:h-10 sm:w-10"
+                className={`no-print absolute right-1 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-slate-700 shadow-md transition hover:bg-white sm:right-2 sm:h-10 sm:w-10 ${fadeArrow(
+                  arrows.visible,
+                )}`}
               >
                 <Arrow dir="right" />
               </button>
