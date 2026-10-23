@@ -48,7 +48,7 @@ function ExpandIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="h-4 w-4"
+      className="h-3.5 w-3.5 shrink-0"
       aria-hidden="true"
     >
       <path d="M8 3H5a2 2 0 0 0-2 2v3" />
@@ -228,6 +228,15 @@ function NeighborImage({ photoKey }) {
 }
 
 /**
+ * 只预热签名 URL、不预载大图字节。
+ * 全屏里连续滑动时，下一张的 URL 已经就位，图片才会"跟着手指换"。
+ */
+function WarmUrl({ photoKey }) {
+  useSignedUrl(photoKey);
+  return null;
+}
+
+/**
  * 全屏预览（lightbox）。
  *
  * 交互约定与 ShareButton 的弹层一致：fixed inset-0 + 深色遮罩、点空白关闭、
@@ -328,23 +337,37 @@ function Lightbox({ categories, catIdx, onSelectCat, photos, index, onChange, on
     }
   };
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e) => {
     const g = gest.current;
     if (!g.active) return;
     g.active = false;
     setDragY(0);
 
-    const vertical = Math.abs(g.dy) > Math.abs(g.dx) * 1.1;
-    if (g.dy > 110 && vertical) {
+    // 落点以 touchend 为准：快滑时浏览器可能一次 touchmove 都不发，
+    // 只靠累计值会把 120px 的滑动记成 0，表现就是"滑好几次才切一张"
+    const t = e.changedTouches && e.changedTouches[0];
+    const dx = t ? t.clientX - g.x : g.dx;
+    const dy = t ? t.clientY - g.y : g.dy;
+    g.dx = dx;
+    g.dy = dy;
+
+    // 横向优先：够长且比纵向明显，就切图
+    if (many && Math.abs(dx) >= 44 && Math.abs(dx) > Math.abs(dy)) {
       g.movedAt = Date.now();
-      onClose(); // 下滑退出全屏
+      if (dx < 0) onChange(1);
+      else onChange(-1);
       return;
     }
-    if (many && !vertical && Math.abs(g.dx) >= 44) {
+    // 否则够长且以向下为主，就退出全屏
+    if (dy > 110 && Math.abs(dy) > Math.abs(dx)) {
       g.movedAt = Date.now();
-      if (g.dx < 0) onChange(1);
-      else onChange(-1);
+      onClose();
     }
+  };
+
+  const onTouchCancel = () => {
+    gest.current.active = false;
+    setDragY(0);
   };
 
   const landscapePhoto = ratio > 1.05;
@@ -431,6 +454,7 @@ function Lightbox({ categories, catIdx, onSelectCat, photos, index, onChange, on
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchCancel}
         onClick={(e) => {
           // 刚滑动/拖动过，浏览器补发的那次 click 不算点击
           if (Date.now() - gest.current.movedAt < 400) return;
@@ -509,6 +533,10 @@ function Lightbox({ categories, catIdx, onSelectCat, photos, index, onChange, on
 
       {prevKey && <NeighborImage photoKey={prevKey} />}
       {nextKey && <NeighborImage photoKey={nextKey} />}
+      {/* 本分类全部 key 预热签名 URL，连滑几张也不用等接口 */}
+      {photos.map((p) => (
+        <WarmUrl key={p.key} photoKey={p.key} />
+      ))}
     </div>
   );
 }
@@ -692,17 +720,6 @@ export default function PhotoGallery({ sections }) {
             </div>
           </button>
 
-          {/* 全屏入口（打印时隐藏） */}
-          <button
-            type="button"
-            onClick={openFull}
-            aria-label="全屏查看"
-            title="全屏查看"
-            className="no-print absolute right-2 top-2 grid h-10 w-10 place-items-center rounded-full bg-white/80 text-slate-700 shadow-md transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
-          >
-            <ExpandIcon />
-          </button>
-
           {/* 左右切换按钮（打印时隐藏；静置 1 秒后淡出） */}
           {photos.length > 1 && (
             <>
@@ -730,11 +747,24 @@ export default function PhotoGallery({ sections }) {
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-1">
-          <p className="font-medium text-slate-900">{active.title}</p>
-          <p className="text-xs tabular-nums text-slate-500">
-            {activeIdx + 1} / {photos.length}
-          </p>
+        <div className="mt-3 flex items-center justify-between gap-3 px-1">
+          <p className="min-w-0 truncate font-medium text-slate-900">{active.title}</p>
+          <div className="flex shrink-0 items-center gap-2.5">
+            <p className="text-xs tabular-nums text-slate-500">
+              {activeIdx + 1} / {photos.length}
+            </p>
+            {/* 全屏入口放在图外，不压画面（打印时隐藏） */}
+            <button
+              type="button"
+              onClick={openFull}
+              aria-label="全屏查看"
+              title="全屏查看"
+              className="no-print inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+            >
+              <ExpandIcon />
+              全屏
+            </button>
+          </div>
         </div>
         {activeCat.device && (
           <p className="mt-1 flex items-center gap-1.5 px-1 text-xs text-slate-500">
