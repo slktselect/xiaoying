@@ -24,3 +24,24 @@ html {
     break-inside: avoid;
   }
 }
+
+/* 照片全屏预览的上下栏：
+   只有在"矮视口的横屏"（手机横过来）时才浮起来，把整屏高度让给照片；
+   桌面窗口虽然也是 orientation: landscape，但高度够，保持正常的上下留白。 */
+@media (orientation: landscape) and (max-height: 520px) {
+  .lb-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 20;
+  }
+  .lb-bar-top {
+    top: 0;
+    background-image: linear-gradient(to bottom, rgb(0 0 0 / 0.55), transparent);
+  }
+  .lb-bar-bottom {
+    bottom: 0;
+    padding-top: 0.75rem;
+    background-image: linear-gradient(to top, rgb(0 0 0 / 0.6), transparent);
+  }
+}

@@ -76,13 +76,20 @@ photoSections: [
 右侧缩略图网格；`device` 字段即随图说明文件里的拍摄设备。
 
 全屏预览：点大图或右上角四角图标进入（`PhotoGallery` 内的 `Lightbox`），
-全屏内支持左右方向键 / 箭头按钮 / 手指滑动切图，Esc、关闭按钮、点空白处退出；
+全屏内支持左右方向键 / 箭头按钮 / 手指横滑切图，**手指下滑退出**（跟手拖动，超过 110px 松手即关闭），
+Esc、关闭按钮、点空白处也能退出；**底部有分类标签，全屏里可直接换分类**（换完回到该类第 1 张）；
 打开期间锁 body 滚动，顶栏与底栏留出 `env(safe-area-inset-*)` 安全区，
 并预加载前后各一张，滑动时不闪白。打印时整个全屏层随 `.no-print` 隐藏。
 
 左右箭头静置 1 秒后按 700ms 渐隐（`useAutoHide` + `fadeArrow`），鼠标移动、触摸、
-切图、滚入视口时再淡入；触屏设备上保持常显——手指一碰大图就进全屏，隐藏后没法再唤出。
+切图、切分类、滚入视口时再淡入；**触屏同样隐藏**，靠左右滑动切图，滑完箭头会再淡入一次给反馈。
 隐藏时加 `pointer-events-none`，不会挡住"点大图进全屏"。
+
+横向照片全屏：照片加载后读 `naturalWidth/naturalHeight` 判断横图（比例 > 1.05），
+横图在竖屏下右上角出现「横屏」按钮，点击走 `requestFullscreen` + `screen.orientation.lock('landscape')`
+（iOS 不支持锁方向则静默跳过，用户手动转屏即可）；手机横过来后 `.lb-bar` 让上下栏浮起来，
+照片占满整屏高度，预留 `env(safe-area-inset-left/right)`。桌面窗口虽然也是 landscape，
+但媒体查询限定 `max-height: 520px`，所以仍保持正常上下留白。
 
 签名 URL 缓存（`src/components/useSignedUrl.js`）：同一个 key 在签名有效期内只请求一次
 `/api/video`，并发请求合并、剩余寿命不足 60s 才重签。缩略图、大图、全屏共用这批 key，
