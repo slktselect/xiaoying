@@ -3,6 +3,7 @@ import resume from './resume.config.js';
 import Hero from './components/Hero.jsx';
 import Nav from './components/Nav.jsx';
 import VideoGallery from './components/VideoGallery.jsx';
+import PhotoGallery from './components/PhotoGallery.jsx';
 import Section from './components/Section.jsx';
 import ShareButton from './components/ShareButton.jsx';
 import BackToTop from './components/BackToTop.jsx';
@@ -19,7 +20,7 @@ function upsertMeta(attr, key, content) {
 }
 
 export default function App() {
-  const { profile = {}, contacts = [], sections = [], share, footer, videoGallery } = resume;
+  const { profile = {}, contacts = [], sections = [], photoSections = [], share, footer, videoGallery } = resume;
   // sections 字段有两类：
   //   1) 旧版：[{id, title, items: [...]}, ...] —— 正文分区（id 必填）
   //   2) 新版（视频嵌套）：[{title, desc, videos: [...]}, ...] —— 视频分区（id 缺省，videos 必填）
@@ -32,14 +33,21 @@ export default function App() {
     () => (sections || []).filter((s) => !Array.isArray(s.videos) && !s.hidden),
     [sections],
   );
+  // 摄影作品：photoSections 是顶层字段，按分类分组（photos 数组）
+  const photoUsable = useMemo(
+    () => (photoSections || []).filter((s) => (s.photos || []).length > 0),
+    [photoSections],
+  );
 
   const hasVideos = videoSections.some((s) => (s.videos || []).length > 0);
+  const hasPhotos = photoUsable.length > 0;
   const navItems = useMemo(
     () => [
       ...(hasVideos ? [{ id: 'videos', title: '剪辑作品' }] : []),
+      ...(hasPhotos ? [{ id: 'photos', title: '摄影作品' }] : []),
       ...pageSections.map((s) => ({ id: s.id, title: s.title })),
     ],
-    [hasVideos, pageSections],
+    [hasVideos, hasPhotos, pageSections],
   );
 
   // 标题与 SEO meta 都由配置驱动：改 resume.config.js 即同步搜索引擎 / 微信分享卡片
@@ -73,6 +81,13 @@ export default function App() {
           <section id="videos" className="scroll-mt-20 pt-8">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">剪辑作品</h2>
             <VideoGallery sections={videoSections} autoNext={videoGallery?.autoNext === true} />
+          </section>
+        )}
+
+        {hasPhotos && (
+          <section id="photos" className="scroll-mt-20 pt-8">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900">摄影作品</h2>
+            <PhotoGallery sections={photoUsable} />
           </section>
         )}
 

@@ -11,7 +11,9 @@
  *   profile   基本信息（姓名 / 岗位 / 头像 / 一句话简介）
  *   contacts  联系方式列表，href 留空则只显示文字不生成链接
  *   videos    介绍视频，key 是 R2 里的对象名（HLS 播放列表或 mp4）
+ *   photoSections 摄影作品，按分类分组，含拍摄设备；照片 key 同样是 R2 对象名
  *   sections  正文分区，按顺序渲染；id 会被导航锚点用到，不要重复
+ *   videoGallery 视频区行为（autoNext：播完是否自动接着播下一个）
  *   share     右下角分享二维码的开关与文案
  *   footer    页脚文案
  *
@@ -343,12 +345,52 @@ const resume = {
       ],
     },
   ],
+  /* ---------------- 摄影作品（按分类嵌套） ---------------- */
+  // 每个分类：title 分类名、device 拍摄设备（来自随图说明文件）、photos 数组
+  // key 是 R2 里的对象名（photos/<分类>/<序号>.jpg），与视频共用签名分发通道
+  photoSections: [
+    {
+      title: '空间设计',
+      device: 'Canon 5D4 + 24-105mm 镜头',
+      photos: [
+        { key: 'photos/空间设计/01.jpg', title: '空间设计 01' },
+        { key: 'photos/空间设计/02.jpg', title: '空间设计 02' },
+        { key: 'photos/空间设计/03.jpg', title: '空间设计 03' },
+        { key: 'photos/空间设计/04.jpg', title: '空间设计 04' },
+        { key: 'photos/空间设计/05.jpg', title: '空间设计 05' },
+      ],
+    },
+    {
+      title: '花海',
+      device: 'Canon 5D4 + 85mm 定焦',
+      photos: [
+        { key: 'photos/花海/01.jpg', title: '花海 01' },
+        { key: 'photos/花海/02.jpg', title: '花海 02' },
+        { key: 'photos/花海/03.jpg', title: '花海 03' },
+        { key: 'photos/花海/04.jpg', title: '花海 04' },
+        { key: 'photos/花海/05.jpg', title: '花海 05' },
+        { key: 'photos/花海/06.jpg', title: '花海 06' },
+      ],
+    },
+    {
+      title: '青岛啤酒',
+      device: 'Canon 5D4 + 50mm 定焦',
+      photos: [
+        { key: 'photos/青岛啤酒/01.jpg', title: '青岛啤酒 01' },
+        { key: 'photos/青岛啤酒/02.jpg', title: '青岛啤酒 02' },
+        { key: 'photos/青岛啤酒/03.jpg', title: '青岛啤酒 03' },
+        { key: 'photos/青岛啤酒/04.jpg', title: '青岛啤酒 04' },
+      ],
+    },
+  ],
+
   /* ---------------- 视频区行为 ---------------- */
   videoGallery: {
     // true  = 一个视频播完后自动接着播本分区的下一个（连播）
     // false = 保持手动，每个视频都要点播放按钮（默认）
     autoNext: false,
   },
+
   /* ---------------- 分享二维码 ---------------- */
   share: {
     enabled: true,
