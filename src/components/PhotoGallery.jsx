@@ -81,14 +81,15 @@ function CloseIcon() {
  * 手指向左滑 → 下一张，向右滑 → 上一张。
  * 阈值 44px，且要求横向位移明显大于纵向，避免和竖向滚动抢手势。
  *
- * moved 用来吞掉滑动结束后浏览器补发的那次 click（否则会误触"点空白关闭"）。
+ * movedAt 记录"刚刚滑动过"的时间戳（毫秒）。滑动结束后浏览器会补发一次 click，
+ * 调用方用 `Date.now() - movedAt.current < 400` 把这次 click 吞掉，
+ * 超过 400ms 的正常点击不受影响（比起布尔标志，不会误吞下一次真实点击）。
  */
 function useSwipe({ onNext, onPrev, threshold = 44 }) {
   const startRef = useRef(null);
-  const moved = useRef(false);
+  const movedAt = useRef(0);
 
   const onTouchStart = (e) => {
-    moved.current = false;
     if (e.touches.length !== 1) {
       startRef.current = null;
       return;
@@ -107,12 +108,12 @@ function useSwipe({ onNext, onPrev, threshold = 44 }) {
     const dy = t.clientY - s.y;
     if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.3) return;
 
-    moved.current = true;
+    movedAt.current = Date.now();
     if (dx < 0) onNext && onNext();
     else onPrev && onPrev();
   };
 
-  return { onTouchStart, onTouchEnd, moved };
+  return { onTouchStart, onTouchEnd, movedAt };
 }
 
 /**
@@ -150,16 +151,69 @@ function useAutoHide(delay = 1000) {
 /**
  * 箭头按钮的淡入淡出类名（配合按钮上已有的 transition）。
  *
- * 只在能悬停的设备（桌面鼠标）上真正隐藏：触屏上手指一碰大图就进全屏了，
- * 箭头一旦隐藏就没法再唤出来，所以 `[@media(hover:hover)]` 之外保持常显。
+ * 桌面和触屏都隐藏：触屏上静置 1 秒后箭头淡出，靠左右滑动切图，
+ * 切完图（activeIdx 变化）会再淡入一次给出反馈。
  */
 function fadeArrow(visible) {
-  const hidden =
-    '[@media(hover:hover)]:pointer-events-none [@media(hover:hover)]:opacity-0';
   return `duration-700 ease-out motion-reduce:transition-none focus-visible:opacity-100 focus-visible:pointer-events-auto ${
-    visible ? 'opacity-100' : hidden
+    visible ? 'opacity-100' : 'pointer-events-none opacity-0'
   }`;
 }
+
+/** 分类标签：大图区和全屏层共用，dark 版给全屏的深色底用 */
+function CatTabs({ categories, active, onSelect, dark = false, className = '' }) {
+  if (!categories || categories.length < 2) return null;
+
+  return (
+    <div
+      className={`flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+        dark ? 'justify-start sm:justify-center' : ''
+      } ${className}`}
+    >
+      {categories.map((s, i) => {
+        const on = i === active;
+        const tone = dark
+          ? on
+            ? 'bg-white/90 font-medium text-slate-900'
+            : 'bg-white/15 text-white/80 hover:bg-white/25'
+          : on
+            ? 'bg-blue-50 font-medium text-blue-600'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200';
+        return (
+          <button
+            key={s.title}
+            type="button"
+            onClick={() => onSelect(i)}
+            className={`no-print shrink-0 snap-start rounded-full px-3.5 py-2 text-sm transition sm:py-1.5 ${tone}`}
+            aria-pressed={on}
+          >
+            {s.title}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 旋转到横屏的图标（横向照片在竖屏下用） */
+function RotateIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+      <path d="M21 3.5V9h-5.5" />
+    </svg>
+  );
+}
+
 
 /** 预加载相邻照片，滑动/切图时不再等签名 URL */
 function NeighborImage({ photoKey }) {
@@ -177,14 +231,31 @@ function NeighborImage({ photoKey }) {
  * 全屏预览（lightbox）。
  *
  * 交互约定与 ShareButton 的弹层一致：fixed inset-0 + 深色遮罩、点空白关闭、
- * Esc 关闭；额外支持左右方向键、左右箭头按钮、移动端左右滑动。
+ * Esc 关闭；额外支持左右方向键、左右箭头按钮、手指左右滑动。
+ * 另外：手指下滑退出、底部可直接切换分类、横向照片可一键转横屏并铺满。
  * 打开期间锁 body 滚动，顶部/底部留出刘海与横条的安全区。
  */
-function Lightbox({ photos, index, category, onChange, onClose }) {
+function Lightbox({ categories, catIdx, onSelectCat, photos, index, onChange, onClose }) {
   const photo = photos[index];
   const { url, loading, error } = useSignedUrl(photo ? photo.key : '');
   const closeRef = useRef(null);
+  const rootRef = useRef(null);
   const many = photos.length > 1;
+  const category = categories && categories[catIdx];
+
+  // 当前照片的宽高比（用来判断横图，并据此决定留白与"转横屏"入口）
+  const [ratio, setRatio] = useState(0);
+  // 手指下滑的位移，用于跟手拖动 + 松手判定
+  const [dragY, setDragY] = useState(0);
+  const [portrait, setPortrait] = useState(
+    () => typeof window === 'undefined' || window.innerHeight >= window.innerWidth,
+  );
+  const gest = useRef({ x: 0, y: 0, dx: 0, dy: 0, active: false, movedAt: 0 });
+
+  const photoKey = photo ? photo.key : '';
+  useEffect(() => {
+    setRatio(0);
+  }, [photoKey]);
 
   // 锁滚动：全屏时背景不能跟着滑（移动端尤其明显）
   useEffect(() => {
@@ -217,16 +288,87 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [many, onChange, onClose]);
 
-  const swipe = useSwipe({
-    onNext: () => many && onChange(1),
-    onPrev: () => many && onChange(-1),
-  });
+  // 朝向变化：横竖屏决定要不要给"转横屏"入口
+  useEffect(() => {
+    const onResize = () => setPortrait(window.innerHeight >= window.innerWidth);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
 
-  // 箭头静置 1 秒淡出；移动鼠标 / 触摸 / 切图后淡入
+  // 箭头静置 1 秒淡出；触摸 / 移动鼠标 / 切图 / 切分类后淡入
   const arrows = useAutoHide(1000);
   useEffect(() => {
     arrows.reveal();
-  }, [index, arrows.reveal]);
+  }, [index, catIdx, arrows.reveal]);
+
+  const onTouchStart = (e) => {
+    arrows.reveal();
+    if (e.touches.length !== 1) {
+      gest.current.active = false;
+      return;
+    }
+    const t = e.touches[0];
+    gest.current = { x: t.clientX, y: t.clientY, dx: 0, dy: 0, active: true, movedAt: 0 };
+  };
+
+  const onTouchMove = (e) => {
+    const g = gest.current;
+    if (!g.active || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    g.dx = t.clientX - g.x;
+    g.dy = t.clientY - g.y;
+    // 往下拖且明显是竖向：跟手移动，松手超过阈值就退出
+    if (g.dy > 0 && Math.abs(g.dy) > Math.abs(g.dx) * 1.1) {
+      g.movedAt = Date.now();
+      setDragY(Math.min(g.dy * 0.85, 260));
+    }
+  };
+
+  const onTouchEnd = () => {
+    const g = gest.current;
+    if (!g.active) return;
+    g.active = false;
+    setDragY(0);
+
+    const vertical = Math.abs(g.dy) > Math.abs(g.dx) * 1.1;
+    if (g.dy > 110 && vertical) {
+      g.movedAt = Date.now();
+      onClose(); // 下滑退出全屏
+      return;
+    }
+    if (many && !vertical && Math.abs(g.dx) >= 44) {
+      g.movedAt = Date.now();
+      if (g.dx < 0) onChange(1);
+      else onChange(-1);
+    }
+  };
+
+  const landscapePhoto = ratio > 1.05;
+  const canLockOrientation =
+    typeof screen !== 'undefined' &&
+    !!screen.orientation &&
+    typeof screen.orientation.lock === 'function';
+  // 横向照片 + 竖屏：给一个"转横屏"入口（能锁方向就锁，锁不了让用户自己转）
+  const showRotate = landscapePhoto && portrait && canLockOrientation;
+
+  const rotateToLandscape = async () => {
+    try {
+      if (rootRef.current && rootRef.current.requestFullscreen && !document.fullscreenElement) {
+        await rootRef.current.requestFullscreen();
+      }
+    } catch {
+      /* iOS Safari 不支持元素级全屏，忽略 */
+    }
+    try {
+      await screen.orientation.lock('landscape');
+    } catch {
+      /* 不支持就手动转屏 */
+    }
+  };
 
   if (!photo) return null;
 
@@ -235,17 +377,34 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
 
   return (
     <div
+      ref={rootRef}
       className="no-print fixed inset-0 z-[70] flex flex-col bg-slate-950/95 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="全屏预览照片"
     >
-      {/* 顶栏：标题 + 关闭 */}
+      {/* 顶栏：标题 + 转横屏 + 关闭（手机横过来时浮在照片上方，把高度让给照片） */}
       <div
-        className="flex shrink-0 items-center gap-3 px-3 pb-1"
-        style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))' }}
+        className="lb-bar lb-bar-top flex shrink-0 items-center gap-3 px-3 pb-1"
+        style={{
+          paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+        }}
       >
         <p className="min-w-0 flex-1 truncate text-sm text-white/85">{photo.title}</p>
+        {showRotate && (
+          <button
+            type="button"
+            onClick={rotateToLandscape}
+            aria-label="横屏查看"
+            title="横屏查看"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 text-xs text-white transition hover:bg-white/25"
+          >
+            <RotateIcon />
+            横屏
+          </button>
+        )}
         <button
           ref={closeRef}
           type="button"
@@ -257,20 +416,24 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
         </button>
       </div>
 
-      {/* 图片区：点空白关闭，支持左右滑动 */}
+      {/* 图片区：点空白关闭；横滑切图、下滑退出全屏 */}
       <div
-        className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden overscroll-contain px-1 sm:px-16"
-        onMouseMove={arrows.reveal}
-        onTouchStart={(e) => {
-          swipe.onTouchStart(e);
-          arrows.reveal();
+        className={`relative flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden overscroll-contain ${
+          landscapePhoto ? 'sm:px-4' : 'sm:px-14'
+        }`}
+        style={{
+          transform: dragY ? `translateY(${dragY}px) scale(${1 - dragY / 2600})` : undefined,
+          transition: dragY ? 'none' : 'transform 220ms ease-out',
+          paddingLeft: 'max(0.25rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.25rem, env(safe-area-inset-right, 0px))',
         }}
-        onTouchEnd={swipe.onTouchEnd}
+        onMouseMove={arrows.reveal}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
         onClick={(e) => {
-          if (swipe.moved.current) {
-            swipe.moved.current = false;
-            return;
-          }
+          // 刚滑动/拖动过，浏览器补发的那次 click 不算点击
+          if (Date.now() - gest.current.movedAt < 400) return;
           if (e.target === e.currentTarget) onClose();
         }}
       >
@@ -279,6 +442,10 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
             src={url}
             alt={photo.title}
             draggable={false}
+            onLoad={(e) => {
+              const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+              if (w && h) setRatio(w / h);
+            }}
             className="max-h-full max-w-full select-none object-contain"
           />
         ) : (
@@ -313,14 +480,27 @@ function Lightbox({ photos, index, category, onChange, onClose }) {
         )}
       </div>
 
-      {/* 底栏：序号 + 拍摄设备 */}
+      {/* 底栏：分类切换 + 序号 + 拍摄设备（手机横过来时浮在照片上方） */}
       <div
-        className="shrink-0 px-4 pt-1 text-center"
-        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+        className="lb-bar lb-bar-bottom shrink-0 px-3 pt-1 text-center"
+        style={{
+          paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+        }}
       >
+        <CatTabs
+          categories={categories}
+          active={catIdx}
+          onSelect={onSelectCat}
+          dark
+          className="mb-2"
+        />
         <p className="text-xs tabular-nums text-white/70">
           {index + 1} / {photos.length}
-          {many && <span className="ml-2 text-white/35 sm:hidden">左右滑动切换</span>}
+          <span className="ml-2 text-white/35 sm:hidden">
+            {many ? '左右滑切换 · 下滑退出' : '下滑退出'}
+          </span>
         </p>
         {category && category.device && (
           <p className="mt-0.5 truncate text-xs text-white/45">拍摄设备：{category.device}</p>
@@ -377,11 +557,12 @@ function PhotoThumb({ photo, active = false, onSelect }) {
  *   宽屏：左大图（按照片自身比例，限高 65vh），右分类标签 + 缩略图；
  *   窄屏：上大图，下标签 + 缩略图（块级自然堆叠）。
  *
- * 全屏：点大图或右上角四角图标进入；全屏内可左右方向键、箭头按钮、手指滑动切换，
+ * 全屏：点大图或右上角四角图标进入；全屏内可左右方向键、箭头按钮、手指横滑切换，
+ * 手指下滑退出，底部还能直接切分类；横向照片给"横屏"入口并铺满屏幕。
  * Esc / 关闭按钮 / 点空白退出。
  *
- * 左右箭头静置 1 秒后淡出（700ms 过渡），鼠标移动 / 触摸 / 切图 / 滚入视口时淡入；
- * 触屏设备上保持常显——手指一碰大图就进全屏，隐藏后没法再唤出。
+ * 左右箭头静置 1 秒后淡出（700ms 过渡），鼠标移动 / 触摸 / 切图 / 切分类 / 滚入视口时淡入；
+ * 触屏同样隐藏，靠左右滑动切图，切完图箭头会再淡入一次。
  *
  * 照片存在 R2，经 Worker 的 /api/video 签发短期签名 URL 后加载（防盗链同视频）。
  */
@@ -469,30 +650,6 @@ export default function PhotoGallery({ sections }) {
     setPhotoIdx(0);
   };
 
-  const tabs =
-    usable.length > 1 ? (
-      <div className="mb-3 flex snap-x gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {usable.map((s, i) => {
-          const on = i === catIdx;
-          return (
-            <button
-              key={s.title}
-              type="button"
-              onClick={() => selectCat(i)}
-              className={`shrink-0 snap-start rounded-full px-3.5 py-2 text-sm transition sm:py-1.5 ${
-                on
-                  ? 'bg-blue-50 font-medium text-blue-600'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-              aria-pressed={on}
-            >
-              {s.title}
-            </button>
-          );
-        })}
-      </div>
-    ) : null;
-
   return (
     <div className="lg:grid lg:items-start lg:gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {/* 左：大图 + 照片信息 */}
@@ -508,10 +665,7 @@ export default function PhotoGallery({ sections }) {
             type="button"
             onClick={() => {
               // 滑动结束后浏览器会补发一次 click，别把它当成"点开全屏"
-              if (swipe.moved.current) {
-                swipe.moved.current = false;
-                return;
-              }
+              if (Date.now() - swipe.movedAt.current < 400) return;
               openFull();
             }}
             aria-label={`全屏查看 ${active.title}`}
@@ -592,7 +746,7 @@ export default function PhotoGallery({ sections }) {
 
       {/* 右：分类标签 + 缩略图网格 */}
       <div className="mt-4 lg:mt-0">
-        {tabs}
+        <CatTabs categories={usable} active={catIdx} onSelect={selectCat} className="mb-3" />
         <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
           {photos.map((p) => (
             <PhotoThumb key={p.key} photo={p} active={p === active} onSelect={selectPhoto} />
@@ -602,9 +756,11 @@ export default function PhotoGallery({ sections }) {
 
       {full && (
         <Lightbox
+          categories={usable}
+          catIdx={catIdx}
+          onSelectCat={selectCat}
           photos={photos}
           index={activeIdx}
-          category={activeCat}
           onChange={go}
           onClose={closeFull}
         />
