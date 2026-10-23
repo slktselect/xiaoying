@@ -80,6 +80,10 @@ photoSections: [
 打开期间锁 body 滚动，顶栏与底栏留出 `env(safe-area-inset-*)` 安全区，
 并预加载前后各一张，滑动时不闪白。打印时整个全屏层随 `.no-print` 隐藏。
 
+左右箭头静置 1 秒后按 700ms 渐隐（`useAutoHide` + `fadeArrow`），鼠标移动、触摸、
+切图、滚入视口时再淡入；触屏设备上保持常显——手指一碰大图就进全屏，隐藏后没法再唤出。
+隐藏时加 `pointer-events-none`，不会挡住"点大图进全屏"。
+
 上传照片（注意 `--remote`，见上文「上传切片（重要）」）：
 
 ```powershell
