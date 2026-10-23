@@ -7,3 +7,4 @@ video-workflow/
 .dev.vars
 *.tar
 .DS_Store
+.workbuddy/
