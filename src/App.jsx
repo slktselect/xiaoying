@@ -3,11 +3,12 @@ import resume from './resume.config.js';
 import Hero from './components/Hero.jsx';
 import Nav from './components/Nav.jsx';
 import VideoGallery from './components/VideoGallery.jsx';
+import PhotoGallery from './components/PhotoGallery.jsx';
 import Section from './components/Section.jsx';
 import ShareButton from './components/ShareButton.jsx';
 
 export default function App() {
-  const { profile = {}, contacts = [], sections = [], share, footer } = resume;
+  const { profile = {}, contacts = [], sections = [], photoSections = [], share, footer } = resume;
   // sections 字段有两类：
   //   1) 旧版：[{id, title, items: [...]}, ...] —— 正文分区（id 必填）
   //   2) 新版（视频嵌套）：[{title, desc, videos: [...]}, ...] —— 视频分区（id 缺省，videos 必填）
@@ -20,14 +21,21 @@ export default function App() {
     () => (sections || []).filter((s) => !Array.isArray(s.videos) && !s.hidden),
     [sections],
   );
+  // 摄影作品：photoSections 是顶层字段，按分类分组（photos 数组）
+  const photoUsable = useMemo(
+    () => (photoSections || []).filter((s) => (s.photos || []).length > 0),
+    [photoSections],
+  );
 
   const hasVideos = videoSections.some((s) => (s.videos || []).length > 0);
+  const hasPhotos = photoUsable.length > 0;
   const navItems = useMemo(
     () => [
       ...(hasVideos ? [{ id: 'videos', title: '视频介绍' }] : []),
+      ...(hasPhotos ? [{ id: 'photos', title: '摄影作品' }] : []),
       ...pageSections.map((s) => ({ id: s.id, title: s.title })),
     ],
-    [hasVideos, pageSections],
+    [hasVideos, hasPhotos, pageSections],
   );
 
   useEffect(() => {
@@ -50,6 +58,13 @@ export default function App() {
           <section id="videos" className="scroll-mt-20 pt-8">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">视频介绍</h2>
             <VideoGallery sections={videoSections} />
+          </section>
+        )}
+
+        {hasPhotos && (
+          <section id="photos" className="scroll-mt-20 pt-8">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900">摄影作品</h2>
+            <PhotoGallery sections={photoUsable} />
           </section>
         )}
 

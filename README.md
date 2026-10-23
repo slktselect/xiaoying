@@ -1,8 +1,8 @@
 # xiaoying
 
 托管在 Cloudflare 的**在线简历站点**。前端是 **React 19 + Tailwind CSS 4**（Vite 构建），
-产物由 Workers 静态资源直出；简历中的视频存放在 R2，通过 Worker 签发
-**短期签名 URL + Referer 白名单**做防盗链，按 HLS 分片播放，秒开可拖动进度条。
+产物由 Workers 静态资源直出；简历中的视频与摄影照片存放在 R2，通过 Worker 签发
+**短期签名 URL + Referer 白名单**做防盗链，视频按 HLS 分片播放，秒开可拖动进度条。
 
 构建 / 部署命令：
 
@@ -14,12 +14,13 @@ npm run deploy      # = vite build + wrangler deploy
 ## 改简历内容（只需要改一个文件）
 
 所有文字都在 **`src/resume.config.js`**，字段带中文注释：姓名、手机号、邮箱、岗位、
-一句话简介、技能、工作经历、项目经历、教育背景、视频、页脚。
+一句话简介、技能、工作经历、项目经历、教育背景、视频、摄影作品（photoSections）、页脚。
 
 ```js
 profile: { name: '你的姓名', title: '应聘岗位：…', avatar: '', summary: '…' },
 contacts: [{ label: '电话', value: '138-0000-0000', href: 'tel:13800000000' }, …],
 sections: [{ id: 'work', title: '工作经历', items: [{ title, subtitle, period, meta, bullets, tags }] }],
+photoSections: [{ title: '空间设计', device: 'Canon 5D4 + 24-105mm', photos: [{ key: 'photos/空间设计/01.jpg', title: '空间设计 01' }] }],
 ```
 
 改完保存 → `npm run deploy`。本地预览：`npm run dev`（改配置会热更新）。
@@ -28,16 +29,52 @@ sections: [{ id: 'work', title: '工作经历', items: [{ title, subtitle, perio
 
 ```
 src/resume.config.js    ← 简历内容，只改这里
-src/App.jsx             页面组装（Hero / 导航 / 视频 / 分区 / 分享）
-src/components/         Hero、Nav、Section、VideoCard、ShareButton
+src/App.jsx             页面组装（Hero / 导航 / 视频 / 摄影 / 分区 / 分享）
+src/components/         Hero、Nav、Section、VideoGallery、PhotoGallery、ShareButton
 src/main.jsx            React 入口
 src/index.css           Tailwind 入口 + 打印样式
-worker/index.js         Worker：视频签名校验 + R2 回源 + HLS 列表改写
+worker/index.js         Worker：视频/照片签名校验 + R2 回源 + HLS 列表改写
 worker/usage.js         每日用量统计与免费额度护栏（Workers KV）
 index.html              Vite 入口
 vite.config.js          React / Tailwind 插件，产物输出到 dist/
 wrangler.toml           Workers / 静态资源(dist) / R2 绑定 / 环境变量
 ```
+
+## 摄影作品（照片 + 拍摄设备）
+
+照片与视频共用同一套防盗链分发通道：存 R2，经 `/api/video` 签发短期签名 URL，
+`/v/<key>` 校验签名后回源（Referer 白名单 + HMAC 签名，详见「路由」一节）。
+
+```
+photos/空间设计/01.jpg ~ 05.jpg     拍摄设备：Canon 5D4 + 24-105mm
+photos/花海/01.jpg ~ 06.jpg         拍摄设备：Canon 5D4 + 85mm 定焦
+photos/青岛啤酒/01.jpg ~ 04.jpg     拍摄设备：Canon 5D4 + 50mm 定焦
+```
+
+内容配置在 `src/resume.config.js` 的 `photoSections`（顶层字段，按分类分组）：
+
+```js
+photoSections: [
+  {
+    title: '空间设计',
+    device: 'Canon 5D4 + 24-105mm 镜头',          // 显示在大图下方
+    photos: [{ key: 'photos/空间设计/01.jpg', title: '空间设计 01' }, …],
+  },
+  …
+],
+```
+
+页面渲染：分类标签切换 → 左侧大图预览（限高 65vh，支持左右箭头与键盘方向键）→
+右侧缩略图网格；`device` 字段即随图说明文件里的拍摄设备。
+
+上传照片（注意 `--remote`，见上文「上传切片（重要）」）：
+
+```powershell
+npx wrangler r2 object put xiaoying-video/photos/空间设计/01.jpg --file .\01.jpg --content-type image/jpeg --remote
+```
+
+新增分类后无需改代码，`photoSections` 加一组即可；`wrangler.toml` 的 `VIDEO_KEYS`
+已包含 `photos/*`，换前缀的话记得同步放行。
 
 ## 分享二维码
 
@@ -129,7 +166,7 @@ npm run tail        # 线上实时日志
 部署拿到域名后，**务必**在 `wrangler.toml` 的 `[vars]` 里收紧，然后重新 `npx wrangler deploy`：
 
 ```toml
-VIDEO_KEYS = "gna.mp4"                                       # 只允许这些 key 被签发播放
+VIDEO_KEYS = "videos/*,photos/*"                           # 视频与照片的 key 前缀白名单
 ALLOW_REFERERS = "xiaoying.xxx.workers.dev,resume.example.com"  # 只允许本站页面嵌入播放
 ALLOW_EMPTY_REFERER = "0"                                    # 无 Referer 的直接访问一律 403
 BIND_IP = "1"                                                # 可选：签名绑定客户端 IP
@@ -206,21 +243,17 @@ m3u8 里是**相对路径**（`seg_000.ts`），播放器按相对路径请求�
 
 ### 上传切片（重要）
 
-> ⚠️ 本项目环境里 **`wrangler r2 object put` 写入的对象 Worker 读不到**：
-> CLI 上传后 `wrangler r2 object get` 能取回，但 Worker 侧 `head()` 返回 404
-> （CLI 与 Worker 绑定解析到的不是同一个桶实例）。改用下面两种方式之一：
-
-1. **Cloudflare 控制台上传**（最省事）：R2 → `xiaoying-video` → 上传，先建 `hls/` 前缀再拖入全部文件。
-2. **REST API**（可脚本批量）：
+> ⚠️ `wrangler r2 object put/get` **必须加 `--remote`**：不加时操作的是 miniflare 本地模拟桶，
+> 上传成功但 Worker 绑定的是远端真实桶，`head()` 自然 404，表现为"CLI 传的文件 Worker 读不到"。
+> 本项目环境已验证：加 `--remote` 后 CLI 上传的对象 Worker 立即可读。
 
 ```powershell
-Invoke-RestMethod -Method Put `
-  -Uri "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/r2/buckets/xiaoying-video/objects/hls/seg_000.ts" `
-  -Headers @{ Authorization = "Bearer $token" } `
-  -InFile ".\seg_000.ts" -ContentType "video/mp2t"
+npx wrangler r2 object put xiaoying-video/videos/溜溜梅/seg_000.ts --file .\seg_000.ts --content-type video/mp2t --remote
 ```
 
-分片 Content-Type 用 `video/mp2t`，播放列表用 `application/vnd.apple.mpegurl`。
+> 上传时带上 `--content-type` 可省去 Worker 按扩展名猜测。R2 单次 PUT 上限 5GB。
+
+也可以不用 CLI，改用 **Cloudflare 控制台上传**（R2 → `xiaoying-video` → 上传）或 **REST API**（需自建 API 令牌）。
 
 ## 用 S3 API 管理 R2 对象
 
